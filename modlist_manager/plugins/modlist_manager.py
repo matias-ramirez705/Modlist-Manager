@@ -17,7 +17,7 @@ Enfoque:
   - Settings en MO2: puerto, auto-start, debug, rotacion diaria de logs.
 
 Autor: Krou705
-Version: 3.2.0
+Version: 6.0.0
 """
 
 import os
@@ -172,6 +172,7 @@ body {
   color: white;
 }
 .btn-sm { padding: 4px 10px; font-size: 12px; }
+#card-modlist.selected, #card-csv.selected { border-color: var(--accent) !important; background: rgba(217, 130, 43, 0.1) !important; }
 .btn-icon {
   background: transparent;
   border: 1px solid var(--border);
@@ -384,7 +385,9 @@ body {
 
 /* Column widths */
 .col-status { width: 50px; text-align: center; min-width: 50px; }
-.col-priority { width: 80px; text-align: right; min-width: 65px; font-variant-numeric: tabular-nums; }
+.col-priority { width: 80px; text-align: center; min-width: 65px; font-variant-numeric: tabular-nums; padding-left: 10px; padding-right: 6px; }
+.col-priority span, .col-priority input { display: inline-block; min-width: 30px; text-align: center; }
+.mod-table th.col-priority { text-align: center; padding-left: 10px; padding-right: 6px; }
 .col-name { min-width: 200px; width: 300px; }
 .col-category { width: 140px; min-width: 80px; }
 .col-version { width: 90px; min-width: 60px; }
@@ -839,15 +842,44 @@ hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
   </div>
   <div class="profile-tag">
     <span data-i18n="topbar.profile">Perfil:</span>
-    <strong id="profile-name">—</strong>
+    <select id="profile-select" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 6px;font-size:12px;cursor:pointer;max-width:200px;" data-i18n-title="topbar.profile_select_title" title="Selecciona un perfil para cambiar">
+      <option>—</option>
+    </select>
+    <button id="btn-reload-profiles" data-i18n-title="topbar.reload_profiles_title" title="Recargar lista de perfiles" style="background:var(--bg);border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 6px;font-size:12px;cursor:pointer;line-height:1;">↻</button>
   </div>
   <div class="spacer"></div>
   <div class="actions">
-    <div class="refresh-indicator" id="refresh-toggle" title="Click to pause/resume auto-refresh">
+    <div class="refresh-indicator" id="refresh-toggle" data-i18n-title="topbar.autorefresh_toggle_title" title="Click to pause/resume auto-refresh">
       <span class="dot on" id="refresh-dot"></span>
-      <span id="refresh-label">Auto</span>
+      <span id="refresh-label" data-i18n="topbar.autorefresh_on">On</span>
     </div>
     <button class="btn btn-sm" id="btn-refresh" data-i18n="topbar.refresh">Actualizar</button>
+    <button class="btn btn-sm" id="btn-settings" data-i18n-title="topbar.settings_title" title="Ajustes" style="font-size:14px;line-height:1;padding:4px 8px;">⚙</button>
+  </div>
+</div>
+
+<!-- Modal de Ajustes -->
+<div id="settings-modal" class="modal hidden">
+  <div class="modal-backdrop" onclick="document.getElementById('settings-modal').classList.add('hidden');"></div>
+  <div class="modal-content" style="max-width:480px;">
+    <div class="modal-header">
+      <h2 data-i18n="settings.title">Ajustes</h2>
+      <button class="modal-close" onclick="document.getElementById('settings-modal').classList.add('hidden');">x</button>
+    </div>
+    <div class="modal-body" style="padding:16px;">
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-weight:600;margin-bottom:6px;" data-i18n="settings.data_source">Modo de carga de datos</label>
+        <select id="settings-data-source" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-size:13px;">
+          <option value="modlist" data-i18n="settings.ds_modlist">modlist.txt + meta.ini (recomendado)</option>
+          <option value="csv" data-i18n="settings.ds_csv">CSV exportado por MO2 (rapido para listas grandes)</option>
+        </select>
+        <p style="font-size:11px;color:var(--text-dim);margin-top:6px;line-height:1.4;" data-i18n="settings.data_source_desc">Al cambiar este modo, se borra database.json y se recargan los datos desde cero con el nuevo modo. Tus comentarios personales (comment2) y tags se preservan.</p>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn" onclick="document.getElementById('settings-modal').classList.add('hidden');" data-i18n="settings.cancel">Cancelar</button>
+        <button class="btn btn-primary" id="btn-save-data-source" data-i18n="settings.apply">Aplicar y recargar</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -903,17 +935,36 @@ hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
     </div>
 
     <div class="notice" id="csv-notice" style="display:none;">
-      <h3 data-i18n="csv.missing_title">No se encontro el CSV de MO2</h3>
-      <p data-i18n="csv.missing_desc">Para que el plugin funcione, necesitas exportar tu lista de mods desde MO2:</p>
-      <ol>
-        <li data-i18n="csv.missing_step1">En MO2, ve a Open List Options (Opciones de lista abierta) &gt; Export CSV (Exportar lista a CSV)</li>
-        <li data-i18n="csv.missing_step2">Selecciona "Todos los mods instalados"</li>
-        <li data-i18n="csv.missing_step3">Marca todas las columnas a exportar (especialmente Mod_Prioridad)</li>
-        <li><span data-i18n="csv.missing_step4">Guarda el archivo como</span> <strong style="color:var(--accent);">modlist.csv</strong> <button class="btn btn-sm" id="btn-copy-csvname" style="padding:1px 8px;font-size:11px;margin-left:6px;" data-i18n="csv.copy_btn">Copiar</button> <span data-i18n="csv.missing_step4b">en una de estas rutas:</span></li>
-      </ol>
-      <p style="margin-left:20px;"><span data-i18n="csv.missing_plugin_path">Carpeta del plugin:</span> <code id="csv-expected-path"></code></p>
-      <p style="margin-left:20px;"><span data-i18n="csv.missing_mo2_path">Raiz de MO2:</span> <code id="csv-mo2-path"></code></p>
-      <p style="margin-top:10px;" data-i18n="csv.missing_step5">Despues pulsa "Actualizar" arriba a la derecha</p>
+      <!-- Selector de modo de carga (se muestra si select_data_source es true) -->
+      <div id="select-data-source" style="display:none;text-align:center;padding:20px 0;">
+        <h3 style="color:var(--accent);margin-bottom:10px;" data-i18n="datasource.title">How do you want to load your mod list?</h3>
+        <p style="color:var(--text-dim);margin-bottom:20px;font-size:13px;" data-i18n="datasource.desc">You can change this later in the plugin settings.</p>
+        <div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap;">
+          <div style="background:var(--bg);border:2px solid var(--border);border-radius:8px;padding:20px;max-width:300px;cursor:pointer;" id="card-modlist" onclick="document.getElementById('card-modlist').classList.add('selected');document.getElementById('card-csv').classList.remove('selected');">
+            <h4 style="color:var(--accent);margin-bottom:8px;" data-i18n="datasource.modlist_title">Modlist.txt (Recommended)</h4>
+            <p style="font-size:12px;color:var(--text-dim);" data-i18n="datasource.modlist_desc">Reads modlist.txt + meta.ini directly. No CSV export needed. Best for lists under 2000 mods.</p>
+          </div>
+          <div style="background:var(--bg);border:2px solid var(--border);border-radius:8px;padding:20px;max-width:300px;cursor:pointer;" id="card-csv" onclick="document.getElementById('card-csv').classList.add('selected');document.getElementById('card-modlist').classList.remove('selected');">
+            <h4 style="color:var(--accent);margin-bottom:8px;" data-i18n="datasource.csv_title">CSV Export (Fast for large lists)</h4>
+            <p style="font-size:12px;color:var(--text-dim);" data-i18n="datasource.csv_desc">Requires exporting a CSV from MO2 first. Much faster for 3000+ mods. Priority, comments, and categories come from the CSV.</p>
+          </div>
+        </div>
+        <button type="button" class="btn btn-primary" id="btn-confirm-data-source" style="margin-top:20px;padding:8px 24px;" data-i18n="datasource.confirm">Confirm</button>
+      </div>
+      <!-- Aviso de CSV faltante (se muestra si data_source=csv y no hay CSV) -->
+      <div id="csv-missing-notice" style="display:none;">
+        <h3 data-i18n="csv.missing_title">No se encontro el CSV de MO2</h3>
+        <p data-i18n="csv.missing_desc">Para que el plugin funcione, necesitas exportar tu lista de mods desde MO2:</p>
+        <ol>
+          <li data-i18n="csv.missing_step1">En MO2, ve a Open List Options (Opciones de lista abierta) &gt; Export CSV (Exportar lista a CSV)</li>
+          <li data-i18n="csv.missing_step2">Selecciona "Todos los mods instalados"</li>
+          <li data-i18n="csv.missing_step3">Marca todas las columnas a exportar (especialmente Mod_Prioridad)</li>
+          <li><span data-i18n="csv.missing_step4">Guarda el archivo como</span> <strong style="color:var(--accent);">modlist.csv</strong> <button class="btn btn-sm" id="btn-copy-csvname" style="padding:1px 8px;font-size:11px;margin-left:6px;" data-i18n="csv.copy_btn">Copiar</button> <span data-i18n="csv.missing_step4b">en una de estas rutas:</span></li>
+        </ol>
+        <p style="margin-left:20px;"><span data-i18n="csv.missing_plugin_path">Carpeta del plugin:</span> <code id="csv-expected-path"></code></p>
+        <p style="margin-left:20px;"><span data-i18n="csv.missing_mo2_path">Raiz de MO2:</span> <code id="csv-mo2-path"></code></p>
+        <p style="margin-top:10px;" data-i18n="csv.missing_step5">Despues pulsa "Actualizar" arriba a la derecha</p>
+      </div>
     </div>
 
     <div class="table-wrap" id="table-wrap">
@@ -1073,6 +1124,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
       <!-- Sub-tabs -->
       <div class="nem-tabs" id="versions-subtabs">
         <button class="nem-tab active" data-vsubtab="mods" data-i18n="versions.subtab_mods">Mods</button>
+        <button class="nem-tab" data-vsubtab="updated" data-i18n="versions.subtab_updated">Updated</button>
         <button class="nem-tab" data-vsubtab="custom" data-i18n="versions.subtab_custom">Personalizada</button>
         <button class="nem-tab" data-vsubtab="backups" data-i18n="versions.subtab_backups">Respaldos</button>
       </div>
@@ -1108,12 +1160,49 @@ hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
               <th data-i18n="versions.col_nexus_id" style="width:120px;">Nexus ID</th>
               <th data-i18n="versions.col_file_id" style="width:120px;">File ID</th>
               <th class="col-version" data-i18n="modlist.col_version">Version</th>
+              <th data-i18n="modlist.col_link" style="min-width:80px;">Link</th>
               <th data-i18n="versions.col_version_link" style="min-width:160px;">Enlace de version</th>
               <th data-i18n="versions.col_separator" style="min-width:140px;">Separador</th>
               <th data-i18n="versions.col_comment" style="min-width:140px;">Comentario</th>
               <th data-i18n="versions.col_actions" style="width:80px;">Acciones</th>
             </tr></thead>
             <tbody id="versions-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sub-tab: Updated (mods whose version changed vs a backup) -->
+      <div class="versions-subpanel" id="vsub-updated" style="display:none;">
+        <p data-i18n="versions.updated_desc">Compara la base de datos actual con un respaldo anterior y lista los mods cuya version ha cambiado. Usa el desplegable para elegir el respaldo de referencia (manual o auto-respaldo creado al iniciar MO2).</p>
+        <div class="stats-grid" id="updated-versions-stats">
+          <div class="stat-box"><div class="stat-label" data-i18n="versions.updated_total">Mods actualizados</div><div class="stat-value" style="color:var(--accent);font-size:24px;" id="stat-updated-total">0</div></div>
+        </div>
+        <div class="controls">
+          <label for="version-diff-backup" style="font-size:12px;color:var(--text-dim);" data-i18n="versions.select_backup">Seleccionar respaldo de referencia</label>
+          <select class="select" id="version-diff-backup" style="min-width:240px;">
+            <option value="" data-i18n="versions.select_backup">Seleccionar respaldo de referencia</option>
+          </select>
+          <button class="btn btn-sm" id="btn-updated-refresh" data-i18n="versions.refresh">Actualizar</button>
+        </div>
+        <div class="controls">
+          <input type="text" class="search-input" id="updated-search" data-i18n-placeholder="modlist.search_placeholder" placeholder="Buscar mod...">
+          <select class="select" id="updated-filter-sep">
+            <option value="" data-i18n="versions.filter_all_sep">Todos los separadores</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="mod-table" id="updated-versions-table">
+            <thead><tr>
+              <th class="col-status" data-i18n="versions.col_active">Act</th>
+              <th class="col-priority" data-i18n="modlist.col_order" style="width:60px;">N°</th>
+              <th class="col-name" data-i18n="modlist.col_name">Mod</th>
+              <th class="col-version" data-i18n="versions.col_old_version" style="min-width:120px;">Versión antigua</th>
+              <th class="col-version" data-i18n="versions.col_current_version" style="min-width:120px;">Versión actual</th>
+              <th data-i18n="versions.col_mod_link" style="min-width:140px;">Link mod</th>
+              <th data-i18n="versions.col_old_link" style="min-width:160px;">Link versión antigua</th>
+              <th data-i18n="versions.col_current_link" style="min-width:160px;">Link versión actual</th>
+            </tr></thead>
+            <tbody id="updated-versions-tbody"></tbody>
           </table>
         </div>
       </div>
@@ -1388,6 +1477,7 @@ const Api={
   async forgetMod(n){const r=await fetch("/api/mods/"+encodeURIComponent(n)+"/forget",{method:"POST"});const d=await r.json();if(!d.ok)throw new Error(d.error);return d;},
   async forgetAllMods(names){const r=await fetch("/api/mods/forget_all",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({names})});const d=await r.json();if(!d.ok)throw new Error(d.error);return d.data;},
   async setCollapse(s,c){const r=await fetch("/api/collapse/"+encodeURIComponent(s),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({collapsed:c})});const d=await r.json();if(!d.ok)throw new Error(d.error);return d;},
+  async setCollapseBatch(states){const r=await fetch("/api/collapse_batch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({states:states})});const d=await r.json();if(!d.ok)throw new Error(d.error);return d;},
   async listSnapshots(type="modlist"){const r=await fetch(`/api/backups?type=${type}`);const d=await r.json();if(!d.ok)throw new Error(d.error);return d.data;},
   async createSnapshot(type="modlist"){const r=await fetch(`/api/backups?type=${type}`,{method:"POST"});const d=await r.json();if(!d.ok)throw new Error(d.error);return d.data;},
   async deleteSnapshot(f){const r=await fetch("/api/backups/"+encodeURIComponent(f),{method:"DELETE"});const d=await r.json();if(!d.ok)throw new Error(d.error);return d;},
@@ -1415,6 +1505,8 @@ const Api={
   async getVersionBackup(f){const r=await fetch("/api/version_backups/"+encodeURIComponent(f));const d=await r.json();if(!d.ok)throw new Error(d.error);return d.data;},
   async restoreVersionBackup(f){const r=await fetch("/api/version_backups/"+encodeURIComponent(f),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({restore:true})});const d=await r.json();if(!d.ok)throw new Error(d.error);return d.data;},
   async deleteVersionBackup(f){const r=await fetch("/api/version_backups/"+encodeURIComponent(f),{method:"DELETE"});const d=await r.json();if(!d.ok)throw new Error(d.error);return d;},
+  async listModlistBackups(){const r=await fetch("/api/list_modlist_backups");const d=await r.json();if(!d.ok)throw new Error(d.error);return d.data;},
+  async getVersionDiff(backupFilename){const r=await fetch("/api/version_diff?backup="+encodeURIComponent(backupFilename));const d=await r.json();if(!d.ok)throw new Error(d.error);return d.data;},
 };
 window.Api=Api;
 
@@ -1449,6 +1541,8 @@ const ModlistTab={filters:{search:"",separator:"",status:"",category:"",tags:""}
           }
         }
         this.render();
+        // Sincronizar hash local para evitar re-render del polling
+        this._lastStateHash=this._computeStateHash(this.lastState);
         // Hacer scroll hasta el separador
         setTimeout(()=>{
           const row=document.querySelector(`tr.sep-row[data-modname="${CSS.escape(sepName)}"]`);
@@ -1463,6 +1557,8 @@ const ModlistTab={filters:{search:"",separator:"",status:"",category:"",tags:""}
           }
         }
         this.render();
+        // Sincronizar hash local para evitar re-render del polling
+        this._lastStateHash=this._computeStateHash(this.lastState);
       }else{
         this.render();
       }
@@ -1470,22 +1566,46 @@ const ModlistTab={filters:{search:"",separator:"",status:"",category:"",tags:""}
     document.getElementById("filter-status").addEventListener("change",e=>{this.filters.status=e.target.value;this.render();});
     document.getElementById("filter-category").addEventListener("change",e=>{this.filters.category=e.target.value;this.render();});
     document.getElementById("filter-tags").addEventListener("change",e=>{this.filters.tags=e.target.value;this.render();});
-    document.getElementById("btn-expand-all").addEventListener("click",()=>{
+    document.getElementById("btn-expand-all").addEventListener("click",async()=>{
       if(!this.lastState)return;
-      for(const s of this.lastState.sections){if(s.separator){s.collapsed=false;Api.setCollapse(s.separator.name,false).catch(()=>{});}}
+      // Construir el estado de colapso completo (todos expandidos = false)
+      // y guardarlo en una sola llamada batch. Esto evita la race condition
+      // de disparar N llamadas /api/collapse/ concurrentes que se pisan entre si.
+      const states={};
+      for(const s of this.lastState.sections){
+        if(s.separator){
+          s.collapsed=false;
+          states[s.separator.name]=false;
+        }
+      }
       this.render();
+      try{await Api.setCollapseBatch(states);}catch(e){}
+      // Sincronizar hash local con el estado actual para evitar re-render del polling
+      this._lastStateHash=this._computeStateHash(this.lastState);
     });
-    document.getElementById("btn-collapse-all").addEventListener("click",()=>{
+    document.getElementById("btn-collapse-all").addEventListener("click",async()=>{
       if(!this.lastState)return;
-      for(const s of this.lastState.sections){if(s.separator){s.collapsed=true;Api.setCollapse(s.separator.name,true).catch(()=>{});}}
+      // Construir el estado de colapso completo (todos colapsados = true)
+      // y guardarlo en una sola llamada batch.
+      const states={};
+      for(const s of this.lastState.sections){
+        if(s.separator){
+          s.collapsed=true;
+          states[s.separator.name]=true;
+        }
+      }
       this.render();
+      try{await Api.setCollapseBatch(states);}catch(e){}
+      // Sincronizar hash local con el estado actual para evitar re-render del polling
+      this._lastStateHash=this._computeStateHash(this.lastState);
     });
     document.getElementById("btn-sync-mo2").addEventListener("click",async()=>{
+      if(!confirm(I18n.t("modlist.confirm_sync_mo2")))return;
       try{
         showToast(I18n.t("modlist.syncing_mo2"),"info");
         const r=await Api.refreshFromMo2();
         showToast(I18n.t("modlist.synced_mo2")+": "+r.updated+" mods","success");
-        await this.refresh();
+        await this.refresh(true);
       }catch(e){showToast(I18n.t("topbar.error")+": "+e.message,"error");}
     });
     document.getElementById("btn-refresh-csv").addEventListener("click",async()=>{
@@ -1494,8 +1614,16 @@ const ModlistTab={filters:{search:"",separator:"",status:"",category:"",tags:""}
         showToast(I18n.t("modlist.refreshing_csv"),"info");
         const r=await Api.refreshFromCsv();
         showToast(I18n.t("modlist.refreshed_csv")+": "+r.updated+" mods","success");
-        await this.refresh();
-      }catch(e){showToast(I18n.t("topbar.error")+": "+e.message,"error");}
+        await this.refresh(true);
+      }catch(e){
+        if(e.message==="csv_not_found"){
+          showToast(I18n.t("csv.not_found_warning"),"warning");
+          this._lastStateHash="";
+          await this.refresh(true);
+        }else{
+          showToast(I18n.t("topbar.error")+": "+e.message,"error");
+        }
+      }
     });
     document.getElementById("mod-modal-close").addEventListener("click",()=>this.closeModal());
     const btnCopyCsv=document.getElementById("btn-copy-csvname");
@@ -1569,6 +1697,8 @@ const ModlistTab={filters:{search:"",separator:"",status:"",category:"",tags:""}
           // sin esperar a la llamada API. Guardar en backend en segundo plano.
           sec.collapsed=!sec.collapsed;
           this.render();
+          // Sincronizar hash local para evitar re-render del polling
+          this._lastStateHash=this._computeStateHash(this.lastState);
           // Guardar en backend sin esperar (fire and forget)
           Api.setCollapse(sepName,sec.collapsed).catch(()=>{});
         }
@@ -1665,17 +1795,18 @@ const ModlistTab={filters:{search:"",separator:"",status:"",category:"",tags:""}
   },
   loadColumnWidths(){try{const r=localStorage.getItem("mlm_col_widths");return r?JSON.parse(r):{};}catch(e){return{};}},
   saveColumnWidths(){const t=document.getElementById("modlist-table");if(!t)return;const w={};t.querySelectorAll("thead th[data-col]").forEach(th=>{const x=th.getBoundingClientRect().width;if(x>0)w[th.dataset.col]=Math.round(x);});try{localStorage.setItem("mlm_col_widths",JSON.stringify(w));}catch(e){}},
-  async refresh(){
+  async refresh(force=false){
     try{
       const s=await Api.getState();
       // Optimizacion: si los datos no cambiaron, no re-renderizar
       // (evita re-render innecesario durante el polling cada 5s)
+      // A menos que se fuerce (force=true) despues de sincronizar/actualizar
       const hash=this._computeStateHash(s);
       const filtersChanged=hash!==this._lastStateHash;
       this.lastState=s;AppState.state=s;
       this._lastStateHash=hash;
       this.populateFilters(s);
-      if(filtersChanged||!this._renderedOnce){
+      if(filtersChanged||!this._renderedOnce||force){
         this._renderedOnce=true;
         this.render();
       }
@@ -1683,17 +1814,20 @@ const ModlistTab={filters:{search:"",separator:"",status:"",category:"",tags:""}
   },
   _computeStateHash(s){
     // Hash simple: combina stats + numero de mods + updated_at + filtros activos
-    // + estado de colapso de separadores
+    // + estado de colapso de separadores + orden de mods (para detectar movimientos)
     const st=s.stats||{};
     const f=this.filters;
     // Incluir estado de colapso de separadores en el hash
     const collapseState=(s.sections||[]).map(sec=>sec.collapsed?"1":"0").join("");
+    // Incluir el orden de los mods (primeras letras de cada nombre) para detectar movimientos
+    const modOrder=(s.sections||[]).flatMap(sec=>sec.mods||[]).map(m=>(m.priority||0)+":"+(m.name||"").substring(0,5)).join("|");
     return JSON.stringify({
       t:st.total,a:st.active,i:st.inactive,m:st.missing,s:st.separators,
       ua:s.updated_at||"",
       fs:f.search+f.status+f.category+f.tags,
       hd:this.hideDeleted?"1":"0",
-      cs:collapseState
+      cs:collapseState,
+      mo:modOrder
     });
   },
   render(){
@@ -1707,6 +1841,39 @@ const ModlistTab={filters:{search:"",separator:"",status:"",category:"",tags:""}
       notice.style.display="block";tw.style.display="none";sg.style.display="none";
       document.getElementById("csv-expected-path").textContent=st.csv_expected_path||"";
       document.getElementById("csv-mo2-path").textContent=st.csv_mo2_path||"";
+      // Mostrar selector de modo o aviso de CSV faltante
+      const selDs=document.getElementById("select-data-source");
+      const csvMiss=document.getElementById("csv-missing-notice");
+      if(st.select_data_source){
+        // Primera vez: mostrar selector
+        selDs.style.display="block";
+        csvMiss.style.display="none";
+        // Configurar boton de confirmacion
+        const btn=document.getElementById("btn-confirm-data-source");
+        if(!btn._init){
+          btn._init=true;
+          btn.addEventListener("click",async()=>{
+            const modlistCard=document.getElementById("card-modlist");
+            const csvCard=document.getElementById("card-csv");
+            let source="";
+            if(modlistCard.classList.contains("selected"))source="modlist";
+            else if(csvCard.classList.contains("selected"))source="csv";
+            else{showToast(I18n.t("datasource.select_warning"),"warning");return;}
+            try{
+              const r=await fetch("/api/set_data_source",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source:source})});
+              const d=await r.json();
+              if(!d.ok)throw new Error(d.error);
+              showToast(I18n.t("datasource.set_ok")+": "+source,"success");
+              this._lastStateHash=""; // forzar refresh
+              await this.refresh(true);
+            }catch(e){showToast("Error: "+e.message,"error");}
+          });
+        }
+      }else{
+        // Modo CSV sin CSV: mostrar aviso
+        selDs.style.display="none";
+        csvMiss.style.display="block";
+      }
       return;
     }
     notice.style.display="none";tw.style.display="";sg.style.display="";
@@ -1722,12 +1889,15 @@ const ModlistTab={filters:{search:"",separator:"",status:"",category:"",tags:""}
     const htmlParts=[];
     const hasActiveFilters=this.filters.search||this.filters.status||this.filters.category||this.filters.tags;
     for(const sec of st.sections){
+      const mods=sec.collapsed&&!hasActiveFilters?[]:sec.mods.filter(m=>this.matchFilters(m));
+      // Si hay filtros activos y no hay mods que coincidan en esta seccion,
+      // saltar el separador tambien (no mostrar separadores vacios al filtrar)
+      if(hasActiveFilters&&mods.length===0&&!sec.separator)continue;
+      if(hasActiveFilters&&mods.length===0&&sec.separator)continue;
       if(sec.separator){
         htmlParts.push(this.renderSeparatorHtml(sec,sepColors));
       }
       if(sec.collapsed&&!hasActiveFilters)continue;
-      const mods=sec.mods.filter(m=>this.matchFilters(m));
-      if(hasActiveFilters&&mods.length===0)continue;
       const sepColor=sec.separator?sepColors[sec.separator.name]:null;
       for(let i=0;i<mods.length;i++){
         const m=mods[i];
@@ -1896,7 +2066,7 @@ const ModlistTab={filters:{search:"",separator:"",status:"",category:"",tags:""}
       :`<span class="${statusClass}">${statusChar}</span>`;
     const priorityHtml=m.deleted_from_disk
       ?`<span>${orderText}</span>`
-      :`<input type="number" class="priority-input" value="${m.order_number!=null?m.order_number:''}" data-modname="${escapeHtml(m.name)}" min="0" style="width:70px;background:var(--bg);border:1px solid var(--border);color:var(--text);text-align:right;border-radius:3px;padding:2px 6px;font-size:12px;">`;
+      :`<input type="number" class="priority-input" value="${m.order_number!=null?m.order_number:''}" data-modname="${escapeHtml(m.name)}" min="0" style="width:70px;background:var(--bg);border:1px solid var(--border);color:var(--text);text-align:center;border-radius:3px;padding:2px 6px;font-size:12px;">`;
     // Columna Trad (solo si la extension esta instalada)
     let tradCellHtml="";
     if(window.Extensions){
@@ -2348,9 +2518,29 @@ const BackupsTab={
           tb.appendChild(tr);
         }
         tbl.appendChild(tb);
+        // Habilitar contraer/expandir separadores en la vista de backup
+        this._enableSepToggle(tb);
         wrap.appendChild(tbl);
         d.appendChild(wrap);
       }
+  },
+  _enableSepToggle(tb){
+    // Click en fila de separador: contraer/expandir mods debajo hasta el siguiente separador
+    tb.addEventListener("click",(e)=>{
+      const tr=e.target.closest("tr");
+      if(!tr||!tr.classList.contains("sep-row"))return;
+      const toggle=tr.querySelector(".sep-toggle");
+      let collapsed=toggle&&toggle.textContent==="▶";
+      // Alternar estado
+      collapsed=!collapsed;
+      if(toggle)toggle.textContent=collapsed?"▶":"▼";
+      // Mostrar/ocultar filas siguientes hasta el siguiente separador
+      let next=tr.nextElementSibling;
+      while(next&&!next.classList.contains("sep-row")){
+        next.style.display=collapsed?"none":"";
+        next=next.nextElementSibling;
+      }
+    });
   },
   loadNemCommentsBackup(){try{const r=localStorage.getItem("mlm_nem_comments");return r?JSON.parse(r):{};}catch(e){return {};}},
   async compare(file){
@@ -2474,6 +2664,8 @@ const BackupsTab={
             tb.appendChild(tr);
           }
           tbl.appendChild(tb);
+          // Habilitar contraer/expandir separadores en tabla de comparacion
+          this._enableSepToggle(tb);
           return tbl;
         };
         leftWrap.appendChild(buildModTable(curMods,bakNames,true));
@@ -2895,6 +3087,8 @@ const VersionsTab={
     document.getElementById("btn-vb-create-custom").addEventListener("click",()=>this.createBackup("custom"));
     document.getElementById("btn-vb-refresh").addEventListener("click",()=>this.refreshBackups());
     document.addEventListener("i18n:changed",()=>{if(this.data)this.render();});
+    // Updated sub-tab (delegado al modulo VersionsUpdatedTab)
+    if(window.VersionsUpdatedTab&&VersionsUpdatedTab.init)VersionsUpdatedTab.init();
   },
   switchSubtab(name){
     this.activeSubtab=name;
@@ -2905,6 +3099,7 @@ const VersionsTab={
     if(name==="mods"&&!this.data)this.refresh();
     if(name==="custom"&&!this.customData)this.refreshCustom();
     if(name==="backups")this.refreshBackups();
+    if(name==="updated"&&window.VersionsUpdatedTab&&VersionsUpdatedTab.refresh)VersionsUpdatedTab.refresh();
   },
   async refresh(){
     const btn=document.getElementById("btn-versions-refresh");
@@ -2946,7 +3141,7 @@ const VersionsTab={
   render(){
     if(!this.data){
       const tb=document.getElementById("versions-tbody");
-      tb.innerHTML=`<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px;">${I18n.t("versions.none")}</td></tr>`;
+      tb.innerHTML=`<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px;">${I18n.t("versions.none")}</td></tr>`;
       return;
     }
     const total=this.data.length;
@@ -2971,7 +3166,7 @@ const VersionsTab={
     const tb=document.getElementById("versions-tbody");
     tb.innerHTML="";
     if(!mods.length){
-      tb.innerHTML=`<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px;">${I18n.t("versions.none_filtered")}</td></tr>`;
+      tb.innerHTML=`<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px;">${I18n.t("versions.none_filtered")}</td></tr>`;
       return;
     }
     const vComments=this.versionComments||{};
@@ -2988,6 +3183,15 @@ const VersionsTab={
           ?m.file_ids.map(fid=>escapeHtml(fid)).join(", ")
           :`<span style="color:var(--text-muted);">—</span>`;
         const versionText=m.version?escapeHtml(m.version):`<span style="color:var(--text-muted);">—</span>`;
+        // Link del mod (pagina general del mod en Nexus, no la version especifica)
+        let modLinkHtml="";
+        if(m.link){
+          modLinkHtml=`<a href="${escapeHtml(m.link)}" target="_blank" rel="noopener" class="mod-link">${I18n.t("versions.open_link")}</a>`;
+        }else if(m.nexus_id&&m.nexus_id!=="0"){
+          modLinkHtml=`<a href="https://www.nexusmods.com/skyrimspecialedition/mods/${escapeHtml(m.nexus_id)}" target="_blank" rel="noopener" class="mod-link">${I18n.t("versions.open_link")}</a>`;
+        }else{
+          modLinkHtml=`<span style="color:var(--text-muted);">—</span>`;
+        }
         let versionLinkHtml="";
         if(m.version_links&&m.version_links.length>0){
           if(m.version_links.length===1){
@@ -2999,14 +3203,11 @@ const VersionsTab={
           versionLinkHtml=`<span style="color:var(--text-muted);">—</span>`;
         }
         const sepText=m._sepName?escapeHtml(m._sepName):`<span style="color:var(--text-muted);">—</span>`;
-        // Comentario editable (version_comment, NO el de MO2)
-        // Toda la celda es clickable para editar
         const vc=vComments[m.name]||"";
         const commentInner=vc?escapeHtml(vc):`<span style="color:var(--text-muted);">—</span>`;
         const commentCell=`<td class="col-comment editable-comment" data-modname="${escapeHtml(m.name)}" title="${I18n.t("versions.comment_placeholder")}" style="cursor:text;">${commentInner}</td>`;
-        // Boton copiar a lista personalizada
         const copyBtn=`<button type="button" class="btn btn-sm btn-primary cv-copy-btn" data-modname="${escapeHtml(m.name)}" title="${I18n.t("versions.copy_to_custom_title")}" style="padding:2px 8px;font-size:11px;">↗</button>`;
-        parts.push(`<tr class="mod-row"><td class="col-status"><span class="${statusClass}">${statusChar}</span></td><td class="col-name">${escapeHtml(m.display_name||m.name)}</td><td style="font-family:monospace;font-size:12px;">${nexusId}</td><td style="font-family:monospace;font-size:12px;">${fileIds}</td><td class="col-version">${versionText}</td><td>${versionLinkHtml}</td><td>${sepText}</td>${commentCell}<td style="text-align:center;">${copyBtn}</td></tr>`);
+        parts.push(`<tr class="mod-row"><td class="col-status"><span class="${statusClass}">${statusChar}</span></td><td class="col-name">${escapeHtml(m.display_name||m.name)}</td><td style="font-family:monospace;font-size:12px;">${nexusId}</td><td style="font-family:monospace;font-size:12px;">${fileIds}</td><td class="col-version">${versionText}</td><td class="col-link">${modLinkHtml}</td><td>${versionLinkHtml}</td><td>${sepText}</td>${commentCell}<td style="text-align:center;">${copyBtn}</td></tr>`);
       }
       if(start===0){tb.innerHTML=parts.join("");}else{tb.insertAdjacentHTML("beforeend",parts.join(""))}
       if(end<mods.length){requestAnimationFrame(()=>renderChunk(end));}
@@ -3320,6 +3521,170 @@ const VersionsTab={
 };
 window.VersionsTab=VersionsTab;
 
+// ==================== versions_updated.js ====================
+// Sub-pestaña "Actualizadas" dentro de la pestana Versions.
+// Compara la DB actual contra un respaldo anterior (manual o auto-backup)
+// y lista los mods cuya version ha cambiado.
+const VersionsUpdatedTab={
+  data:null,            // lista de mods con version cambiada (cacheada)
+  backups:null,         // lista de respaldos disponibles para el dropdown
+  filters:{search:"",separator:""},
+  selectedBackup:"",
+  _initDone:false,
+  init(){
+    if(this._initDone)return;
+    this._initDone=true;
+    const btn=document.getElementById("btn-updated-refresh");
+    if(btn)btn.addEventListener("click",()=>this.refresh());
+    const search=document.getElementById("updated-search");
+    if(search)search.addEventListener("input",debounce(e=>{this.filters.search=e.target.value.toLowerCase();this.render();},200));
+    const sepFilter=document.getElementById("updated-filter-sep");
+    if(sepFilter)sepFilter.addEventListener("change",e=>{this.filters.separator=e.target.value;this.render();});
+    const backupSel=document.getElementById("version-diff-backup");
+    if(backupSel)backupSel.addEventListener("change",e=>{this.selectedBackup=e.target.value;this.refresh();});
+    document.addEventListener("i18n:changed",()=>{if(this.data)this.render();if(this.backups)this.populateBackupDropdown();});
+  },
+  async refresh(){
+    const btn=document.getElementById("btn-updated-refresh");
+    const oldText=btn?btn.textContent:"";
+    if(btn){btn.textContent=I18n.t("versions.loading");btn.disabled=true;}
+    const tb=document.getElementById("updated-versions-tbody");
+    if(tb&&this.selectedBackup){
+      tb.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--accent);padding:30px;">${I18n.t("versions.loading")}</td></tr>`;
+    }
+    try{
+      const sel=document.getElementById("version-diff-backup");
+      const curSel=sel?sel.value:this.selectedBackup;
+      if(curSel){
+        // getVersionDiff devuelve {updates:[...], backups:[...]}
+        const r=await Api.getVersionDiff(curSel);
+        this.data=r.updates||[];
+        this.backups=r.backups||this.backups;
+        this.selectedBackup=curSel;
+        this.populateBackupDropdown();
+        this.populateFilters();
+        this.render();
+      }else{
+        // No hay respaldo seleccionado: cargar lista de respaldos y mostrar prompt
+        if(!this.backups){
+          this.backups=await Api.listModlistBackups();
+        }
+        this.data=null;
+        this.populateBackupDropdown();
+        this.render();
+      }
+    }catch(e){showToast(I18n.t("topbar.error")+": "+e.message,"error");}
+    if(btn){btn.textContent=oldText;btn.disabled=false;}
+  },
+  populateBackupDropdown(){
+    const sel=document.getElementById("version-diff-backup");
+    if(!sel)return;
+    const cur=this.selectedBackup||sel.value;
+    sel.innerHTML=`<option value="">${I18n.t("versions.select_backup")}</option>`;
+    if(this.backups&&this.backups.length){
+      for(const b of this.backups){
+        const o=document.createElement("option");
+        o.value=b.filename||"";
+        const isAuto=(b.filename||"").startsWith("auto_backup_");
+        const tag=isAuto?` (${I18n.t("versions.auto_backup")})`:"";
+        const dateStr=b.date||b.created_at||"";
+        const count=b.entries!=null?b.entries:0;
+        o.textContent=`${b.label||b.filename||""}${tag} — ${dateStr} (${count})`;
+        sel.appendChild(o);
+      }
+    }
+    // Mantener la seleccion actual si sigue presente
+    let found=false;
+    for(const opt of sel.options){if(opt.value===cur){found=true;break;}}
+    sel.value=found?cur:"";
+  },
+  populateFilters(){
+    const sel=document.getElementById("updated-filter-sep");
+    if(!sel)return;
+    const cur=this.filters.separator;
+    const set=new Set();
+    for(const m of (this.data||[])){if(m._sepName)set.add(m._sepName);}
+    sel.innerHTML=`<option value="">${I18n.t("versions.filter_all_sep")}</option>`;
+    for(const s of Array.from(set).sort()){
+      const o=document.createElement("option");
+      o.value=s;o.textContent=s;
+      sel.appendChild(o);
+    }
+    sel.value=cur;
+  },
+  _renderLinkList(links,fileIds){
+    if(links&&links.length>0){
+      if(links.length===1){
+        return `<a href="${escapeHtml(links[0])}" target="_blank" rel="noopener" class="mod-link">${I18n.t("versions.open_link")}</a>`;
+      }
+      return links.map((vl,idx)=>`<a href="${escapeHtml(vl)}" target="_blank" rel="noopener" class="mod-link" style="display:inline-block;margin:1px 4px;">[${escapeHtml((fileIds&&fileIds[idx])||"")}]</a>`).join("");
+    }
+    return `<span style="color:var(--text-muted);">—</span>`;
+  },
+  render(){
+    const tb=document.getElementById("updated-versions-tbody");
+    if(!tb)return;
+    const totalEl=document.getElementById("stat-updated-total");
+    if(totalEl)totalEl.textContent=(this.data||[]).length;
+    const sel=document.getElementById("version-diff-backup");
+    if(!sel||!sel.value){
+      tb.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px;">${I18n.t("versions.no_backup_selected")}</td></tr>`;
+      return;
+    }
+    if(!this.data||!this.data.length){
+      tb.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px;">${I18n.t("versions.no_updates")}</td></tr>`;
+      return;
+    }
+    let mods=this.data.slice();
+    if(this.filters.separator){
+      mods=mods.filter(m=>m._sepName===this.filters.separator);
+    }
+    if(this.filters.search){
+      const q=this.filters.search;
+      mods=mods.filter(m=>(m.name+" "+(m.display_name||"")+" "+(m.nexus_id||"")+" "+(m.current_version||"")+" "+(m.old_version||"")).toLowerCase().includes(q));
+    }
+    if(!mods.length){
+      tb.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px;">${I18n.t("versions.none_filtered")}</td></tr>`;
+      return;
+    }
+    tb.innerHTML="";
+    const CHUNK_SIZE=400;
+    const renderChunk=(start)=>{
+      const end=Math.min(start+CHUNK_SIZE,mods.length);
+      const parts=[];
+      for(let i=start;i<end;i++){
+        const m=mods[i];
+        if(m.is_separator){
+          // Renderizar como separador (no como mod normal)
+          const sepName=m.display_name||m.name||"";
+          parts.push(`<tr class="sep-row" data-modname="${escapeHtml(m.name)}"><td colspan="8" style="font-weight:700;color:#ffffff;background:#1a5fb4;padding:10px 12px;border-top:2px solid #155099;border-bottom:2px solid #155099;font-size:13px;">${escapeHtml(sepName)}</td></tr>`);
+          continue;
+        }
+        const statusChar=m.active?"X":"O";
+        const statusClass=m.active?"status-on":"status-off";
+        const name=m.display_name||m.name||"";
+        const oldVersion=m.old_version?escapeHtml(m.old_version):`<span style="color:var(--text-muted);">—</span>`;
+        const curVersion=m.current_version?escapeHtml(m.current_version):`<span style="color:var(--text-muted);">—</span>`;
+        let modLinkHtml="";
+        if(m.link){
+          modLinkHtml=`<a href="${escapeHtml(m.link)}" target="_blank" rel="noopener" class="mod-link">${I18n.t("versions.open_link")}</a>`;
+        }else if(m.nexus_id&&m.nexus_id!=="0"){
+          modLinkHtml=`<a href="https://www.nexusmods.com/skyrimspecialedition/mods/${escapeHtml(m.nexus_id)}" target="_blank" rel="noopener" class="mod-link">${I18n.t("versions.open_link")}</a>`;
+        }else{
+          modLinkHtml=`<span style="color:var(--text-muted);">—</span>`;
+        }
+        const oldLinksHtml=this._renderLinkList(m.old_version_links,m.old_file_ids);
+        const curLinksHtml=this._renderLinkList(m.current_version_links,m.current_file_ids);
+        parts.push(`<tr class="mod-row"><td class="col-status"><span class="${statusClass}">${statusChar}</span></td><td class="col-priority">${escapeHtml(String(m.priority!=null?m.priority:""))}</td><td class="col-name">${escapeHtml(name)}</td><td class="col-version">${oldVersion}</td><td class="col-version">${curVersion}</td><td>${modLinkHtml}</td><td>${oldLinksHtml}</td><td>${curLinksHtml}</td></tr>`);
+      }
+      if(start===0){tb.innerHTML=parts.join("");}else{tb.insertAdjacentHTML("beforeend",parts.join(""))}
+      if(end<mods.length){requestAnimationFrame(()=>renderChunk(end));}
+    };
+    renderChunk(0);
+  },
+};
+window.VersionsUpdatedTab=VersionsUpdatedTab;
+
 // ==================== plugins.js ====================
 const PluginsTab={
   data:null,filter:"",sort:"name",search:"",_loaded:false,
@@ -3416,7 +3781,7 @@ const PluginsTab={
 window.PluginsTab=PluginsTab;
 
 // ==================== app.js ====================
-const App={pollMs:5000,pollTimer:null,
+const App={pollMs:3000,pollTimer:null,
   async init(){
     await I18n.init();
     ModlistTab.init();DeletedTab.init();VersionsTab.init();ImportExportTab.init();NemesisTab.init();BackupsTab.init();PluginsTab.init();
@@ -3425,6 +3790,63 @@ const App={pollMs:5000,pollTimer:null,
     document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>this.switchTab(b.dataset.tab)));
     document.getElementById("btn-refresh").addEventListener("click",()=>this.refreshAll());
     document.getElementById("refresh-toggle").addEventListener("click",()=>this.togglePause());
+    // Dropdown de perfiles: cambiar de perfil al seleccionar
+    document.getElementById("profile-select").addEventListener("change",async(e)=>{
+      const profileName=e.target.value;
+      if(!profileName)return;
+      try{
+        const r=await fetch("/api/switch_profile",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:profileName})});
+        const d=await r.json();
+        if(!d.ok)throw new Error(d.error);
+        showToast(d.data.message,"success");
+        // Invalidar cache y forzar refresh completo
+        // (read_modlist() creara la DB del nuevo perfil si no existe,
+        //  o sincronizara con modlist.txt si ya existe)
+        ModlistTab._lastStateHash="";
+        ModlistTab._renderedOnce=false;
+        this._lastProfileShown=null;  // forzar reload del dropdown
+        await this.refreshAll();
+      }catch(e){
+        showToast(I18n.t("topbar.error")+": "+e.message,"error");
+        // Volver a cargar la lista de perfiles (el cambio fallo)
+        if(AppState.state)await this.updateProfileSelect(AppState.state.profile);
+      }
+    });
+    // Boton recargar lista de perfiles (por si el usuario creo uno nuevo en MO2)
+    document.getElementById("btn-reload-profiles").addEventListener("click",async()=>{
+      try{
+        if(AppState.state){
+          this._lastProfileShown=null;  // forzar reload del dropdown
+          await this.updateProfileSelect(AppState.state.profile);
+          showToast(I18n.t("topbar.profiles_reloaded")||"Perfiles recargados","success");
+        }
+      }catch(e){showToast(I18n.t("topbar.error")+": "+e.message,"error");}
+    });
+    // Boton Ajustes (engranaje): abrir modal de data_source
+    document.getElementById("btn-settings").addEventListener("click",()=>{
+      const modal=document.getElementById("settings-modal");
+      // Pre-seleccionar el modo actual
+      const cur=AppState.state&&(AppState.state.data_source||"");
+      const sel=document.getElementById("settings-data-source");
+      if(cur)sel.value=cur;
+      modal.classList.remove("hidden");
+    });
+    // Boton "Aplicar y recargar" del modal de ajustes
+    document.getElementById("btn-save-data-source").addEventListener("click",async()=>{
+      const sel=document.getElementById("settings-data-source");
+      const newSource=sel.value;
+      try{
+        const r=await fetch("/api/set_data_source",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source:newSource})});
+        const d=await r.json();
+        if(!d.ok)throw new Error(d.error);
+        document.getElementById("settings-modal").classList.add("hidden");
+        showToast(I18n.t("settings.applied")||"Modo cambiado, recargando...","success");
+        // Forzar refresh completo (la DB fue borrada, se recreara con el nuevo modo)
+        ModlistTab._lastStateHash="";
+        ModlistTab._renderedOnce=false;
+        await this.refreshAll();
+      }catch(e){showToast(I18n.t("topbar.error")+": "+e.message,"error");}
+    });
     document.addEventListener("keydown",e=>{if(e.key==="Escape")document.getElementById("mod-modal").classList.add("hidden");});
     await this.refreshAll();this.startPolling();
   },
@@ -3437,22 +3859,36 @@ const App={pollMs:5000,pollTimer:null,
     if(n==="backups")BackupsTab.refresh();
     if(n==="deleted")DeletedTab.refresh();
     if(n==="versions"&&!VersionsTab.data)VersionsTab.refresh();
+    if(n==="versions"&&window.VersionsUpdatedTab&&VersionsTab.activeSubtab==="updated"&&VersionsUpdatedTab.refresh)VersionsUpdatedTab.refresh();
     if(n==="plugins")PluginsTab.refresh();  // refresh() usa cache si _loaded=true
     // Notificar a extensiones del cambio de pestana
     if(window.Extensions&&Extensions.switchTab)Extensions.switchTab(n);
   },
   async refreshAll(){
-    const p=document.getElementById("profile-name");
     try{
       await ModlistTab.refresh();
       this._fetchErrors=0;  // reset contador de errores
       this.hideReconnectOverlay();
-      if(AppState.state)p.textContent=AppState.state.profile;
+      if(AppState.state){
+        // Solo recargar el dropdown de perfiles si el perfil activo cambio.
+        // Esto evita llamar a /api/profiles en cada polling (cada 3-8s),
+        // reduciendo I/O y logs innecesarios.
+        const cur=AppState.state.profile;
+        if(this._lastProfileShown!==cur){
+          this._lastProfileShown=cur;
+          await this.updateProfileSelect(cur);
+        }
+      }
       // Ajustar intervalo de polling segun tamano de la lista
-      // Listas grandes (>1000 mods) usan intervalo mas largo para no sobrecargar
+      // Desde v4.2.0: el auto-refresh usa "light sync" (solo lee modlist.txt,
+      // no lee meta.ini de cada mod). Ademas cachea mtime+size de modlist.txt:
+      // si el archivo no cambio, el poll es solo un stat() = instantaneo.
+      // Por eso los intervalos pueden ser mas cortos que antes.
+      // - Sin cambios en modlist.txt: solo stat() + return cache = ~0ms
+      // - Con cambios en modlist.txt: leer modlist.txt + sync = ~50-100ms
       if(AppState.state&&AppState.state.stats){
         const total=AppState.state.stats.total||0;
-        const newPollMs=total>2000?15000:total>1000?10000:5000;
+        const newPollMs=total>2000?8000:total>1000?5000:3000;
         if(newPollMs!==this.pollMs){
           this.pollMs=newPollMs;
           this.startPolling();  // reiniciar con nuevo intervalo
@@ -3460,7 +3896,6 @@ const App={pollMs:5000,pollTimer:null,
       }
       if(document.getElementById("tab-nemesis").classList.contains("active"))await NemesisTab.refresh();
     }catch(e){
-      p.textContent=I18n.t("topbar.error");
       this._fetchErrors=(this._fetchErrors||0)+1;
       if(this._fetchErrors>=2){
         this.showReconnectOverlay();
@@ -3514,6 +3949,43 @@ const App={pollMs:5000,pollTimer:null,
     if(this.pollTimer){clearInterval(this.pollTimer);this.pollTimer=null;}
     if(this.heartbeatTimer){clearInterval(this.heartbeatTimer);this.heartbeatTimer=null;}
   },
+  async updateProfileSelect(currentProfile){
+    const sel=document.getElementById("profile-select");
+    if(!sel)return;
+    try{
+      const r=await fetch("/api/profiles");
+      const d=await r.json();
+      if(!d.ok||!d.data){
+        // Error: dejar el dropdown visible pero con un solo option
+        sel.innerHTML=`<option value="">${I18n.t("topbar.profile_error")||"Error"}</option>`;
+        sel.disabled=true;
+        return;
+      }
+      const profiles=d.data;
+      if(profiles.length===0){
+        // No se encontraron perfiles (carpeta profiles no existe)
+        sel.innerHTML=`<option value="">${I18n.t("topbar.no_profiles")||"Sin perfiles"}</option>`;
+        sel.disabled=true;
+        return;
+      }
+      // Construir opciones del dropdown
+      sel.innerHTML="";
+      for(const p of profiles){
+        const o=document.createElement("option");
+        o.value=p.name;
+        o.textContent=p.name+(p.current?` (${I18n.t("topbar.profile_current")||"actual"})`:"");
+        if(p.name===currentProfile)o.selected=true;
+        sel.appendChild(o);
+      }
+      // Si solo hay 1 perfil, deshabilitar el dropdown (no hay a donde cambiar)
+      // pero seguir mostrandolo para que el usuario sepa cual perfil esta activo
+      sel.disabled=(profiles.length<=1);
+    }catch(e){
+      console.error("[PROFILE] Error loading profiles:",e);
+      sel.innerHTML=`<option value="">${I18n.t("topbar.profile_error")||"Error"}</option>`;
+      sel.disabled=true;
+    }
+  },
   togglePause(){
     AppState.paused=!AppState.paused;
     const d=document.getElementById("refresh-dot");const l=document.getElementById("refresh-label");
@@ -3530,28 +4002,6 @@ document.addEventListener("DOMContentLoaded",()=>App.init());
 
 
 # ==================== Core: ModlistReader ====================
-
-# Nombres de mods de DLC que se ocultan automaticamente
-DLC_PATTERNS = [
-    "dawnguard", "dragonborn", "hearthfires", "hearth fires",
-    "skyrim", "update.esm", "skyrim.esm",
-    "creation club", "ccbgssse", "ccas", "ccrm", "ccmt", "cctws", "ccffs",
-    "anniversary", "ae upgrade",
-]
-
-
-def is_dlc_name(name: str) -> bool:
-    """Detecta si un mod es un DLC oficial o contenido del Creation Club."""
-    n = name.lower().strip()
-    # Si el nombre empieza con "DLC:" o contiene patrones DLC
-    if n.startswith("dlc:"):
-        return True
-    if n.startswith("dlc "):
-        return True
-    for p in DLC_PATTERNS:
-        if p in n:
-            return True
-    return False
 
 
 def clean_sep_name(name: str) -> str:
@@ -3602,46 +4052,142 @@ class ModlistReader:
     def __init__(self, base_path, profile_dir, organizer=None, logger=None):
         self.base_path = Path(base_path)
         self.profile_dir = Path(profile_dir)
-        self.mods_dir = self.base_path / "mods"
         self.organizer = organizer
         self.logger = logger
+        # BUG 2 fix: usar organizer.modsPath() si esta disponible, no basePath()/mods.
+        # MO2 permite al usuario reubicar el directorio de mods (Settings -> Paths).
+        # Si el organizer no esta disponible o falla, usar basePath()/mods como fallback.
+        mods_dir = None
+        if organizer is not None:
+            try:
+                mp = Path(organizer.modsPath())
+                if mp.exists():
+                    mods_dir = mp
+            except Exception:
+                pass
+        if mods_dir is None:
+            mods_dir = self.base_path / "mods"
+        self.mods_dir = mods_dir
         self.store_dir = self.profile_dir / "ModlistManager"
         self.db_path = self.store_dir / "database.json"
 
     # ------------------------------------------------------------------ #
     # API publica
     # ------------------------------------------------------------------ #
-    def read_modlist(self, force_csv_import=False):
+    def read_modlist(self, force_csv_import=False, light_sync=False):
         """Lee la lista de mods desde database.json, sincronizando con modlist.txt.
 
         Args:
             force_csv_import: si True, re-importa datos desde el CSV (version,
                               categoria, nexus, etc.) sin perder comentarios
                               del usuario ni el orden.
+            light_sync: si True, MODO OPTIMIZADO para auto-refresh (polling):
+                              solo lee modlist.txt para actualizar orden, estado
+                              activo y separadores. NO lee meta.ini de cada mod
+                              (evita cientos/thousands de lecturas en disco).
+                              Los comentarios y demas datos se actualizan solo
+                              con los botones manuales "Sincronizar desde MO2"
+                              o "Actualizar desde CSV".
+                              Ademas cachea mtime+size de modlist.txt: si el
+                              archivo no cambio desde la ultima llamada, NO hace
+                              nada (ni siquiera lo relee).
         """
         # Asegurar que existe el directorio del store
         self.store_dir.mkdir(parents=True, exist_ok=True)
 
+        # Determinar modo de carga desde la configuracion del plugin
+        data_source = ''
+        try:
+            if self.organizer is not None:
+                val = self.organizer.pluginSetting("Modlist Manager", 'data_source')
+                if val:
+                    data_source = str(val).strip().lower()
+        except Exception:
+            pass
+        self.data_source = data_source
+
         db = self._load_database()
 
-        # Si no hay base de datos: requiere CSV inicial del usuario
+        # Si no hay base de datos y no se ha seleccionado modo de carga
+        if db is None and not data_source:
+            # Primera vez: mostrar aviso pidiendo seleccionar modo de carga
+            return {
+                "profile": self.profile_dir.name,
+                "mods": [], "separators": [],
+                "stats": {"total":0,"active":0,"inactive":0,"separators":0,"missing":0},
+                "csv_missing": True,
+                "csv_expected_path": str(self.store_dir / "modlist.csv"),
+                "csv_mo2_path": str(self.base_path / "modlist.csv"),
+                "select_data_source": True,
+            }
+
+        # Si no hay base de datos
         if db is None:
-            csv_path = self._find_csv()
-            if csv_path is None:
-                # No hay DB ni CSV: mostrar aviso pidiendo CSV
-                return {
-                    "profile": self.profile_dir.name,
-                    "mods": [], "separators": [],
-                    "stats": {"total":0,"active":0,"inactive":0,"separators":0,"missing":0},
-                    "csv_missing": True,
-                    "csv_expected_path": str(self.store_dir / "modlist.csv"),
-                    "csv_mo2_path": str(self.base_path / "modlist.csv"),
-                }
-            # Hay CSV: crear DB desde el CSV
-            csv_mods = self._parse_csv(csv_path)
-            db = {"mods": csv_mods, "created_at": self._now_iso(),
-                  "updated_at": self._now_iso()}
-            self._save_database(db)
+            if data_source == 'csv':
+                # Modo CSV: buscar CSV exportado por MO2 (rapido para listas grandes)
+                csv_path = self._find_csv()
+                if csv_path is None:
+                    return {
+                        "profile": self.profile_dir.name,
+                        "mods": [], "separators": [],
+                        "stats": {"total":0,"active":0,"inactive":0,"separators":0,"missing":0},
+                        "csv_missing": True,
+                        "csv_expected_path": str(self.store_dir / "modlist.csv"),
+                        "csv_mo2_path": str(self.base_path / "modlist.csv"),
+                    }
+                csv_mods = self._parse_csv(csv_path)
+                db = {"mods": csv_mods, "created_at": self._now_iso(),
+                      "updated_at": self._now_iso()}
+                self._save_database(db)
+            else:
+                # Modo modlist: crear DB desde modlist.txt + meta.ini
+                ordered = self._read_ordered_mods()
+                if ordered:
+                    cats = self._read_categories()
+                    db = {"mods": [], "created_at": self._now_iso(),
+                          "updated_at": self._now_iso()}
+                    for name, active, priority, is_dlc in ordered:
+                        mod_dir = self.mods_dir / name
+                        meta = self._read_meta_ini(mod_dir)
+                        is_sep = self._is_separator(name, meta)
+                        if is_sep:
+                            display = clean_sep_name(meta.get("name", "") or name)
+                            db["mods"].append({
+                                "name": name, "display_name": display, "active": active,
+                                "priority": priority, "raw_index": priority, "is_separator": True,
+                                "missing": not mod_dir.exists(), "deleted_from_disk": False,
+                                "category": "", "category_id": "", "version": "",
+                                "comment": meta.get("comments", ""), "comment2": "", "link": "",
+                                "nexus_id": "", "tags": [], "mod_path": str(mod_dir),
+                                "is_dlc": False,
+                            })
+                        else:
+                            nexus_id = self._normalize_nexus_id(meta.get("modid", ""))
+                            link = self._build_nexus_link(nexus_id, meta.get("url", ""))
+                            file_ids = meta.get("file_ids", [])
+                            version_links = self._build_version_links(nexus_id, file_ids)
+                            db["mods"].append({
+                                "name": name, "display_name": meta.get("name", name), "active": active,
+                                "priority": priority, "raw_index": priority, "is_separator": False,
+                                "missing": not mod_dir.exists(), "deleted_from_disk": False,
+                                "category": self._resolve_category(meta.get("category", ""), cats), "category_id": "",
+                                "version": meta.get("version", ""), "installation": "",
+                                "comment": meta.get("comments", ""), "comment2": "",
+                                "link": link, "nexus_id": nexus_id, "tags": [],
+                                "mod_path": str(mod_dir),
+                                "file_ids": file_ids, "version_links": version_links,
+                                "is_dlc": is_dlc,
+                            })
+                    self._save_database(db)
+                else:
+                    return {
+                        "profile": self.profile_dir.name,
+                        "mods": [], "separators": [],
+                        "stats": {"total":0,"active":0,"inactive":0,"separators":0,"missing":0},
+                        "csv_missing": True,
+                        "csv_expected_path": str(self.store_dir / "modlist.csv"),
+                        "csv_mo2_path": str(self.base_path / "modlist.csv"),
+                    }
 
         # Si se fuerza import desde CSV
         if force_csv_import:
@@ -3650,13 +4196,26 @@ class ModlistReader:
                 db = self._merge_csv_into_db(db, csv_mods)
                 self._save_database(db)
 
-        # Sincronizar con modlist.txt (mods nuevos/eliminados, estado activo)
-        db = self._sync_with_modlist_txt(db)
-
-        # Enriquecer comentarios desde meta.ini (el CSV de MO2 no siempre los trae)
-        self._enrich_comments_from_meta(db)
-
-        self._save_database(db)
+        # Sincronizacion con modlist.txt:
+        # - light_sync=True  : MODO OPTIMIZADO para polling. Solo lee modlist.txt,
+        #                      NO lee meta.ini. Cachea mtime para saltar procesamiento
+        #                      si modlist.txt no cambio. Usado por auto-refresh.
+        # - light_sync=False : sincronizacion completa. Lee meta.ini de cada mod
+        #                      nuevo y enriquece comentarios. Usado por botones manuales.
+        if light_sync and db is not None:
+            # Auto-refresh optimizado: solo orden/activos/separadores
+            changed = self._sync_order_only(db)
+            if changed:
+                self._save_database(db)
+        else:
+            # Sincronizar con modlist.txt (mods nuevos/eliminados, estado activo)
+            db = self._sync_with_modlist_txt(db)
+            # Enriquecer comentarios desde meta.ini SOLO si no se forzo import desde CSV
+            # (cuando se importa desde CSV, los comentarios ya vienen del CSV y no deben
+            # sobrescribirse con los del meta.ini)
+            if not force_csv_import:
+                self._enrich_comments_from_meta(db)
+            self._save_database(db)
 
         # Aplicar filtros
         mods = db.get("mods", [])
@@ -3676,12 +4235,18 @@ class ModlistReader:
                 "missing": sum(1 for m in mods if m.get("missing", False)),
             },
             "db_path": str(self.db_path),
-            "csv_path": str(self._find_csv()) if self._find_csv() else None,
+            "csv_path": str(csv_path) if (csv_path := self._find_csv()) else None,
         }
 
-    def read_modlist_with_memory(self, memory):
-        """Lee mods y aplica overrides del usuario (comentario 2, categoria, etc.)."""
-        data = self.read_modlist()
+    def read_modlist_with_memory(self, memory, light_sync=False):
+        """Lee mods y aplica overrides del usuario (comentario 2, categoria, etc.).
+
+        Args:
+            memory: diccionario con overrides del usuario cargado desde memory.json.
+            light_sync: si True, usa sincronizacion ligera (solo modlist.txt,
+                        sin leer meta.ini). Optimizado para auto-refresh/polling.
+        """
+        data = self.read_modlist(light_sync=light_sync)
         by_name = {m["name"]: m for m in data["mods"]}
 
         # Aplicar overrides
@@ -3781,7 +4346,7 @@ class ModlistReader:
             "priority": ["prioridad", "priority"],
             "name": ["mod_nombre", "mod_name", "nombre", "name"],
             "state": ["mod_estado", "mod_state", "estado", "state", "status", "active"],
-            "notes": ["columna_notas", "notes", "notas", "comment"],
+            "notes": ["columna_notas", "notes", "notas", "note", "comment"],
             "category": ["categoria_primaria", "category", "categoria"],
             "nexus_id": ["nexus_id", "nexusid", "modid"],
             "nexus_url": ["nexus_url", "nexusurl", "url"],
@@ -3838,13 +4403,22 @@ class ModlistReader:
         version = get("version")
         install_date = get("install_date")
 
-        is_sep = False
-        if name.lower().endswith("_separator"):
-            is_sep = True
-        elif notes.lower().strip() == "separator":
-            is_sep = True
-        elif name.startswith("_"):
-            is_sep = True
+        # Detectar si es un DLC o contenido del Creation Club.
+        # En el CSV exportado por MO2, los DLCs y contenido del Creation Club
+        # tienen prefijos especificos en el nombre:
+        # - "DLC: <nombre>" (ej: "DLC: Dawnguard", "DLC: Dragonborn")
+        # - "Creation Club: <nombre>" (ej: "Creation Club: ccvsvsse004-beafarmer")
+        # En el modlist.txt, estos mods se marcan con el prefijo '*' en lugar de
+        # '+' o '-'. Pero el CSV no tiene esa distincion, asi que usamos los
+        # prefijos del nombre para detectarlos.
+        name_stripped = name.strip()
+        is_dlc = (name_stripped.lower().startswith("creation club:")
+                  or name_stripped.lower().startswith("dlc:"))
+
+        is_sep = name.lower().endswith("_separator")
+        # El sufijo '_separator' es el unico indicador de separador.
+        # MO2 lo usa exclusivamente para marcar separadores — ningun mod
+        # normal tendria ese sufijo (romperia la lista de mods en MO2).
 
         display_name = name
         if is_sep:
@@ -3860,6 +4434,7 @@ class ModlistReader:
                 "missing": missing, "deleted_from_disk": False, "category": "",
                 "category_id": "", "version": "", "comment": notes, "comment2": "",
                 "link": "", "nexus_id": "", "tags": [], "mod_path": str(mod_dir),
+                "is_dlc": False,
             }
         return {
             "name": name, "display_name": display_name, "active": active,
@@ -3868,56 +4443,8 @@ class ModlistReader:
             "category_id": "", "version": version, "installation": install_date,
             "comment": notes, "comment2": "", "link": nexus_url, "nexus_id": nexus_id,
             "tags": [], "mod_path": str(mod_dir),
+            "is_dlc": is_dlc,
         }
-
-    # ------------------------------------------------------------------ #
-    # Generar desde modlist.txt + meta.ini (cuando no hay CSV)
-    # ------------------------------------------------------------------ #
-    def _generate_from_modlist_txt(self):
-        """Genera lista de mods leyendo modlist.txt + meta.ini de cada mod."""
-        installed = self._read_installed_mod_names()
-        if not installed:
-            return []
-        mods = []
-        for name in installed:
-            mod_dir = self.mods_dir / name
-            meta = self._read_meta_ini(mod_dir)
-            try:
-                priority = int(meta.get("priority", "999999"))
-            except (ValueError, TypeError):
-                priority = 999999
-            is_sep = self._is_separator(name, meta)
-            if is_sep:
-                display = clean_sep_name(meta.get("name", "") or name)
-                mods.append({
-                    "name": name, "display_name": display, "active": True,
-                    "priority": priority, "raw_index": priority, "is_separator": True,
-                    "missing": not mod_dir.exists(), "deleted_from_disk": False,
-                    "category": "", "category_id": "", "version": "",
-                    "comment": meta.get("comments", ""), "comment2": "", "link": "",
-                    "nexus_id": "", "tags": [], "mod_path": str(mod_dir),
-                })
-            else:
-                nexus_id = meta.get("modid", "")
-                if nexus_id == "0":
-                    nexus_id = ""
-                # Construir link: usar nexus_id si existe, sino usar url del meta.ini
-                if nexus_id:
-                    link = f"https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}"
-                else:
-                    link = meta.get("url", "")
-                mods.append({
-                    "name": name, "display_name": meta.get("name", name), "active": True,
-                    "priority": priority, "raw_index": priority, "is_separator": False,
-                    "missing": not mod_dir.exists(), "deleted_from_disk": False,
-                    "category": meta.get("category", ""), "category_id": "",
-                    "version": meta.get("version", ""), "installation": "",
-                    "comment": meta.get("comments", ""), "comment2": "",
-                    "link": link, "nexus_id": nexus_id, "tags": [],
-                    "mod_path": str(mod_dir),
-                })
-        mods.sort(key=lambda m: m["priority"])
-        return mods
 
     # ------------------------------------------------------------------ #
     # Sync con modlist.txt (no sobrescribe datos guardados)
@@ -3934,19 +4461,27 @@ class ModlistReader:
         - Mods que siguen: se actualiza el estado activo/inactivo desde modlist.txt.
         - NO se sobrescriben: categoria, comentario, version, link, etc. guardados.
         """
-        installed = self._read_installed_mod_names()
-        if not installed:
+        ordered = self._read_ordered_mods()
+        if not ordered:
             return db
 
+        cats = self._read_categories()
         mods = db.get("mods", [])
 
         # Normalizar nombres de separadores para comparar
         def norm(n):
             return n[:-len("_separator")] if n.lower().endswith("_separator") else n
+        installed = set(name for name, _, _, _ in ordered)
         installed_norm = {norm(n) for n in installed}
 
-        # Construir map de estado activo desde modlist.txt
-        active_states = self._read_active_states()
+        # Construir map de estado activo y prioridad desde modlist.txt
+        active_states = {}
+        priority_map = {}
+        dlc_flags = {}
+        for name, active, priority, is_dlc in ordered:
+            active_states[name] = active
+            priority_map[name] = priority
+            dlc_flags[name] = is_dlc
 
         # Separar mods que siguen de los que se eliminaron
         # Los separadores eliminados se descartan; los mods eliminados se marcan
@@ -3959,28 +4494,46 @@ class ModlistReader:
                 mod["deleted_from_disk"] = False
                 mod_dir = self.mods_dir / name
                 mod["missing"] = not mod_dir.exists()
+                # Actualizar prioridad desde el orden de modlist.txt
+                if name in priority_map:
+                    mod["priority"] = priority_map[name]
+                    mod["raw_index"] = priority_map[name]
                 # Actualizar estado activo desde modlist.txt
                 if name in active_states:
                     mod["active"] = active_states[name]
                 elif name_norm in active_states:
                     mod["active"] = active_states[name_norm]
+                # Actualizar flag is_dlc desde modlist.txt (lineas con '*')
+                if name in dlc_flags:
+                    mod["is_dlc"] = dlc_flags[name]
                 # Si el mod existe en disco y NO es separador, leer meta.ini
                 # para extraer file_ids y version_links (estos datos no estan
                 # en el CSV inicial, solo en el meta.ini de cada mod)
                 if not mod.get("is_separator") and mod_dir.exists():
                     meta = self._read_meta_ini(mod_dir)
+                    # Actualizar categoria resolviendo ID a nombre
+                    if not mod.get("category_override"):
+                        cat_val = meta.get("category", "")
+                        if cat_val:
+                            mod["category"] = self._resolve_category(cat_val, cats)
                     file_ids = meta.get("file_ids", [])
                     mod["file_ids"] = file_ids
-                    nexus_id = mod.get("nexus_id", "") or meta.get("modid", "")
-                    if nexus_id == "0":
-                        nexus_id = ""
-                    version_links = []
-                    if nexus_id and file_ids:
-                        for fid in file_ids:
-                            version_links.append(
-                                f"https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}?tab=files&file_id={fid}"
-                            )
-                    mod["version_links"] = version_links
+                    nexus_id = self._normalize_nexus_id(mod.get("nexus_id", "") or meta.get("modid", ""))
+                    mod["version_links"] = self._build_version_links(nexus_id, file_ids)
+                    # Si el mod era un stub (anadido por light sync sin datos),
+                    # poblar TODOS los campos desde meta.ini
+                    if mod.get("_pending_meta_sync"):
+                        mod["nexus_id"] = nexus_id
+                        mod["link"] = self._build_nexus_link(nexus_id, meta.get("url", ""))
+                        if not mod.get("version"):
+                            mod["version"] = meta.get("version", "")
+                        if not mod.get("comment"):
+                            mod["comment"] = meta.get("comments", "")
+                        mod["display_name"] = meta.get("name", name)
+                        mod["installation"] = meta.get("installation", "")
+                # Limpiar flag _pending_meta_sync: el mod fue procesado con
+                # meta.ini completo (o es separador/existente)
+                mod.pop("_pending_meta_sync", None)
                 kept_mods.append(mod)
             else:
                 # Mod fue eliminado
@@ -4015,10 +4568,8 @@ class ModlistReader:
                 # El mod fue reinstalado: quitar de forgotten para que vuelva a la normalidad
                 forgotten.discard(name)
             meta = self._read_meta_ini(mod_dir)
-            try:
-                priority = int(meta.get("priority", "999999"))
-            except (ValueError, TypeError):
-                priority = 999999
+            # Usar prioridad del orden de modlist.txt
+            priority = priority_map.get(name, 999999)
             is_sep = self._is_separator(name, meta)
             active = active_states.get(name, True)
             if is_sep:
@@ -4030,34 +4581,24 @@ class ModlistReader:
                     "category": "", "category_id": "", "version": "",
                     "comment": meta.get("comments", ""), "comment2": "", "link": "",
                     "nexus_id": "", "tags": [], "mod_path": str(mod_dir),
+                    "is_dlc": False,
                 })
             else:
-                nexus_id = meta.get("modid", "")
-                if nexus_id == "0":
-                    nexus_id = ""
-                # Construir link: usar nexus_id si existe, sino usar url del meta.ini
-                if nexus_id:
-                    link = f"https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}"
-                else:
-                    link = meta.get("url", "")
+                nexus_id = self._normalize_nexus_id(meta.get("modid", ""))
+                link = self._build_nexus_link(nexus_id, meta.get("url", ""))
                 file_ids = meta.get("file_ids", [])
-                # Construir enlaces de version especifica si hay file_id y nexus_id
-                version_links = []
-                if nexus_id and file_ids:
-                    for fid in file_ids:
-                        version_links.append(
-                            f"https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}?tab=files&file_id={fid}"
-                        )
+                version_links = self._build_version_links(nexus_id, file_ids)
                 mods.append({
                     "name": name, "display_name": meta.get("name", name), "active": active,
                     "priority": priority, "raw_index": priority, "is_separator": False,
                     "missing": not mod_dir.exists(), "deleted_from_disk": False,
-                    "category": meta.get("category", ""), "category_id": "",
+                    "category": self._resolve_category(meta.get("category", ""), cats), "category_id": "",
                     "version": meta.get("version", ""), "installation": "",
                     "comment": meta.get("comments", ""), "comment2": "",
                     "link": link, "nexus_id": nexus_id, "tags": [],
                     "mod_path": str(mod_dir),
                     "file_ids": file_ids, "version_links": version_links,
+                    "is_dlc": dlc_flags.get(name, False),
                 })
 
         # Re-ordenar por prioridad
@@ -4067,6 +4608,162 @@ class ModlistReader:
         # algun mod fue reinstalado)
         db["_forgotten"] = sorted(forgotten)
         return db
+
+    def _sync_order_only(self, db):
+        """Sincronizacion LIGERA para auto-refresh (polling optimizado).
+
+        Solo lee modlist.txt. NO lee meta.ini de ningun mod.
+
+        Actualiza:
+          - Prioridad (orden de las lineas en modlist.txt)
+          - Estado activo/inactivo
+          - Flag `missing` (verificando si la carpeta existe, sin leer meta.ini)
+          - Mods nuevos: anadidos como STUB con datos vacios y flag
+            `_pending_meta_sync=True`. El usuario debe usar "Sincronizar desde
+            MO2" o "Actualizar desde CSV" para poblar los datos completos.
+          - Mods eliminados: marcados como deleted_from_disk (o eliminados
+            completamente si son separadores).
+
+        NO actualiza (se actualizan solo con botones manuales):
+          - version, categoria, nexus_id, link, comentarios MO2,
+            file_ids, version_links.
+
+        Optimizacion adicional: cachea mtime+size de modlist.txt. Si el archivo
+        no cambio desde la ultima llamada, retorna False inmediatamente sin
+        procesar nada (sin leer modlist.txt, sin iterar la DB).
+
+        Returns:
+            True si se detectaron cambios (la DB fue modificada, el llamador
+            deberia guardarla). False si modlist.txt no cambio desde la ultima
+            llamada (la DB no se toco, no hace falta guardarla).
+        """
+        path = self.profile_dir / "modlist.txt"
+        if not path.exists():
+            return False
+        try:
+            st = path.stat()
+        except Exception:
+            return False
+
+        # Cache check: si modlist.txt no cambio desde la ultima vez, no hacer nada
+        cur_mtime = st.st_mtime
+        cur_size = st.st_size
+        if (getattr(self, "_modlist_mtime_cache", 0) == cur_mtime and
+            getattr(self, "_modlist_size_cache", 0) == cur_size):
+            return False
+
+        # Actualizar cache antes de procesar (incluso si algo falla despues,
+        # no queremos re-intentar en cada poll)
+        self._modlist_mtime_cache = cur_mtime
+        self._modlist_size_cache = cur_size
+
+        ordered = self._read_ordered_mods()
+        if not ordered:
+            return False
+
+        mods = db.get("mods", [])
+
+        def norm(n):
+            return n[:-len("_separator")] if n.lower().endswith("_separator") else n
+        installed = set(name for name, _, _, _ in ordered)
+        installed_norm = {norm(n) for n in installed}
+
+        # Mapas de estado activo y prioridad desde modlist.txt
+        active_states = {}
+        priority_map = {}
+        dlc_flags = {}
+        for name, active, priority, is_dlc in ordered:
+            active_states[name] = active
+            priority_map[name] = priority
+            dlc_flags[name] = is_dlc
+
+        # Procesar mods existentes en la DB
+        kept_mods = []
+        for mod in mods:
+            name = mod["name"]
+            name_norm = norm(name)
+            if name in installed or name_norm in installed_norm:
+                # Mod sigue instalado: actualizar prioridad y estado activo
+                mod["deleted_from_disk"] = False
+                mod_dir = self.mods_dir / name
+                mod["missing"] = not mod_dir.exists()
+                if name in priority_map:
+                    mod["priority"] = priority_map[name]
+                    mod["raw_index"] = priority_map[name]
+                if name in active_states:
+                    mod["active"] = active_states[name]
+                elif name_norm in active_states:
+                    mod["active"] = active_states[name_norm]
+                # Actualizar flag is_dlc desde modlist.txt (lineas con '*')
+                if name in dlc_flags:
+                    mod["is_dlc"] = dlc_flags[name]
+                # Limpiar flag _pending_meta_sync si el mod sigue en la lista
+                # (solo se setea para mods nuevos, no para los que ya estaban)
+                kept_mods.append(mod)
+            else:
+                # Mod fue eliminado de modlist.txt
+                if mod.get("is_separator"):
+                    # Separador eliminado: descartar completamente
+                    continue
+                else:
+                    # Mod eliminado: mantener con marca de deleted_from_disk
+                    mod["deleted_from_disk"] = True
+                    mod["missing"] = True
+                    mod["active"] = False
+                    kept_mods.append(mod)
+
+        mods = kept_mods
+        db_names = {m["name"] for m in mods}
+        db_names_norm = {norm(n) for n in db_names}
+
+        # Anadir mods nuevos detectados en modlist.txt (sin leer meta.ini)
+        forgotten = set(db.get("_forgotten", []))
+        for name in installed:
+            name_norm = norm(name)
+            if name in db_names or name_norm in db_names_norm:
+                continue
+            mod_dir = self.mods_dir / name
+            # Respetar la lista de forgotten
+            if name in forgotten and not mod_dir.exists():
+                continue
+            if name in forgotten and mod_dir.exists():
+                forgotten.discard(name)
+            priority = priority_map.get(name, 999999)
+            active = active_states.get(name, True)
+            # Heuristica sin meta.ini: SOLO sufijo _separator.
+            # El prefijo '_' NO es indicador de separador (falsos positivos
+            # con mods como '_Fuse00_ArmorRagnar_Vanilla').
+            is_sep = name.lower().endswith("_separator")
+            if is_sep:
+                display = clean_sep_name(name)
+                mods.append({
+                    "name": name, "display_name": display, "active": active,
+                    "priority": priority, "raw_index": priority, "is_separator": True,
+                    "missing": not mod_dir.exists(), "deleted_from_disk": False,
+                    "category": "", "category_id": "", "version": "",
+                    "comment": "", "comment2": "", "link": "",
+                    "nexus_id": "", "tags": [], "mod_path": str(mod_dir),
+                    "_pending_meta_sync": True,
+                    "is_dlc": False,
+                })
+            else:
+                # Stub de mod nuevo: datos vacios, pendiente de sync manual
+                mods.append({
+                    "name": name, "display_name": name, "active": active,
+                    "priority": priority, "raw_index": priority, "is_separator": False,
+                    "missing": not mod_dir.exists(), "deleted_from_disk": False,
+                    "category": "", "category_id": "", "version": "",
+                    "comment": "", "comment2": "", "link": "",
+                    "nexus_id": "", "tags": [], "mod_path": str(mod_dir),
+                    "_pending_meta_sync": True,
+                    "is_dlc": dlc_flags.get(name, False),
+                })
+
+        # Re-ordenar por prioridad
+        mods.sort(key=lambda m: m["priority"])
+        db["mods"] = mods
+        db["_forgotten"] = sorted(forgotten)
+        return True
 
     def _read_active_states(self):
         """Lee modlist.txt y devuelve {name: bool_active}."""
@@ -4082,13 +4779,96 @@ class ModlistReader:
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
-            if line[0] in ("+", "-"):
-                states[line[1:].strip()] = (line[0] == "+")
+            if line[0] in ("+", "-", "*"):
+                states[line[1:].strip()] = (line[0] in ("+", "*"))
         return states
 
     def _read_installed_mod_names(self):
         """Lee modlist.txt y devuelve un set con los nombres de mods instalados."""
         return set(self._read_active_states().keys())
+
+    def _read_ordered_mods(self):
+        """Lee modlist.txt y devuelve una lista ordenada de tuplas.
+
+        Cada tupla es (name, active, priority, is_dlc).
+
+        Formato de modlist.txt de MO2:
+        - Lineas que empiezan con '+' = mod activo
+        - Lineas que empiezan con '-' = mod inactivo
+        - Lineas que empiezan con '*' = DLC / plugin del juego (siempre activo)
+          MO2 usa '*' para marcar DLCs oficiales (Skyrim.esm, Update.esm,
+          Dawnguard.esm, etc.) y contenido del Creation Club.
+
+        La prioridad se infiere del orden de las lineas en modlist.txt.
+        MO2 guarda modlist.txt en orden INVERSO: la ultima linea tiene
+        prioridad 0, la primera tiene la prioridad mas alta.
+        Formula: priority = total_lines - line_number (0-indexed)
+        Esto replica el campo Mod_Prioridad del CSV exportado por MO2.
+        """
+        path = self.profile_dir / "modlist.txt"
+        if not path.exists():
+            return []
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            return []
+        lines = []
+        for raw in text.splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line[0] in ("+", "-", "*"):
+                name = line[1:].strip()
+                active = line[0] in ("+", "*")
+                is_dlc = (line[0] == "*")
+                lines.append((name, active, is_dlc))
+        total = len(lines)
+        # Asignar prioridad: ultima linea = 0, primera = total-1
+        result = []
+        for i, (name, active, is_dlc) in enumerate(lines):
+            priority = total - 1 - i
+            result.append((name, active, priority, is_dlc))
+        return result
+
+    # ------------------------------------------------------------------ #
+    # Helpers reutilizables (construyen nexus_id, link, version_links)
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _normalize_nexus_id(raw_nexus_id):
+        """Normaliza un nexus_id leido de meta.ini o CSV.
+        Devuelve "" si es None, "0", o vacio. Sino devuelve el string sin espacios."""
+        if not raw_nexus_id:
+            return ""
+        nid = str(raw_nexus_id).strip()
+        if nid == "0":
+            return ""
+        return nid
+
+    @staticmethod
+    def _build_nexus_link(nexus_id, fallback_url=""):
+        """Construye la URL del mod en Nexus.
+        Si hay nexus_id, devuelve la URL canonica.
+        Si no, devuelve fallback_url (url del meta.ini o "" si no hay)."""
+        if nexus_id:
+            return f"https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}"
+        return fallback_url or ""
+
+    @staticmethod
+    def _build_version_links(nexus_id, file_ids):
+        """Construye la lista de enlaces de version especifica a partir de
+        nexus_id y file_ids. Si no hay nexus_id o file_ids, devuelve []."""
+        if not nexus_id or not file_ids:
+            return []
+        return [
+            f"https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}?tab=files&file_id={fid}"
+            for fid in file_ids
+        ]
+
+    @staticmethod
+    def _norm_sep_name(name):
+        """Normaliza nombres de separadores para comparacion.
+        Si el nombre termina en '_separator' (case-insensitive), lo quita."""
+        return name[:-len("_separator")] if name.lower().endswith("_separator") else name
 
     # ------------------------------------------------------------------ #
     # Merge CSV into DB (forzar actualizacion de datos sin perder comentarios)
@@ -4140,6 +4920,9 @@ class ModlistReader:
                     mod["active"] = csv_mod.get("active", False)
                     mod["missing"] = csv_mod.get("missing", False)
                     mod["deleted_from_disk"] = False
+                    # Actualizar flag is_dlc desde el CSV
+                    # (en CSV se detecta por prefijo "Creation Club:" o "DLC:")
+                    mod["is_dlc"] = csv_mod.get("is_dlc", False)
                     # NO tocar: comment2, tags (esos son del usuario)
                 # Leer meta.ini para extraer file_ids y version_links
                 # (estos datos no estan en el CSV, solo en el meta.ini)
@@ -4149,16 +4932,10 @@ class ModlistReader:
                         meta = self._read_meta_ini(mod_dir)
                         file_ids = meta.get("file_ids", [])
                         mod["file_ids"] = file_ids
-                        nexus_id = mod.get("nexus_id", "") or meta.get("modid", "")
-                        if nexus_id == "0":
-                            nexus_id = ""
-                        version_links = []
-                        if nexus_id and file_ids:
-                            for fid in file_ids:
-                                version_links.append(
-                                    f"https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}?tab=files&file_id={fid}"
-                                )
-                        mod["version_links"] = version_links
+                        nexus_id = self._normalize_nexus_id(mod.get("nexus_id", "") or meta.get("modid", ""))
+                        mod["version_links"] = self._build_version_links(nexus_id, file_ids)
+                # CSV import: el mod tiene datos completos del CSV, limpiar flag
+                mod.pop("_pending_meta_sync", None)
                 kept_mods.append(mod)
             # Si el mod no esta en el CSV, se descarta (eliminado de MO2)
 
@@ -4181,16 +4958,8 @@ class ModlistReader:
                     meta = self._read_meta_ini(mod_dir)
                     file_ids = meta.get("file_ids", [])
                     csv_mod["file_ids"] = file_ids
-                    nexus_id = csv_mod.get("nexus_id", "") or meta.get("modid", "")
-                    if nexus_id == "0":
-                        nexus_id = ""
-                    version_links = []
-                    if nexus_id and file_ids:
-                        for fid in file_ids:
-                            version_links.append(
-                                f"https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}?tab=files&file_id={fid}"
-                            )
-                    csv_mod["version_links"] = version_links
+                    nexus_id = self._normalize_nexus_id(csv_mod.get("nexus_id", "") or meta.get("modid", ""))
+                    csv_mod["version_links"] = self._build_version_links(nexus_id, file_ids)
             kept_mods.append(csv_mod)
             # Quitar de _forgotten si estaba (re-importacion intencional)
             forgotten.discard(name)
@@ -4212,8 +4981,11 @@ class ModlistReader:
 
         Esto es equivalente a lo que hace MO2 cuando exportas a CSV:
         lee modlist.txt para saber que mods estan instalados y su estado,
-        y lee meta.ini de cada mod para obtener prioridad, version, categoria,
+        y lee meta.ini de cada mod para obtener version, categoria,
         nexus_id, link y comentarios.
+
+        La prioridad se obtiene del ORDEN de las lineas en modlist.txt
+        (igual que MO2 lo hace al exportar a CSV con Mod_Prioridad).
 
         Actualiza database.json SIN perder los overrides del usuario
         (comentario 2, categoria editada, link editado, tags).
@@ -4223,8 +4995,17 @@ class ModlistReader:
             # Si no hay DB, crearla desde cero leyendo meta.ini
             db = {"mods": [], "created_at": self._now_iso(), "updated_at": self._now_iso()}
 
-        installed = self._read_installed_mod_names()
-        active_states = self._read_active_states()
+        # Usar _read_ordered_mods para obtener prioridad del orden de modlist.txt
+        ordered = self._read_ordered_mods()
+        cats = self._read_categories()
+        # Construir dict de prioridades, estados activos y flags DLC
+        priority_map = {}
+        active_states = {}
+        dlc_flags = {}
+        for name, active, priority, is_dlc in ordered:
+            priority_map[name] = priority
+            active_states[name] = active
+            dlc_flags[name] = is_dlc
 
         def norm(n):
             return n[:-len("_separator")] if n.lower().endswith("_separator") else n
@@ -4240,61 +5021,51 @@ class ModlistReader:
         seen_names = set()
 
         # Primero: procesar todos los mods instalados (en orden de modlist.txt)
-        # Calcular prioridad maxima actual para asignar a mods nuevos
-        max_priority = max((m.get("priority", 0) for m in db_mods if not m.get("deleted_from_disk")), default=0)
+        # La prioridad viene del orden de las lineas en modlist.txt
 
         # Cargar lista de forgotten para no volver a agregar mods olvidados
         forgotten = set(db.get("_forgotten", []))
 
-        for name in installed:
+        for name, active, priority, is_dlc in ordered:
             name_norm = norm(name)
             mod_dir = self.mods_dir / name
             meta = self._read_meta_ini(mod_dir)
 
             is_sep = self._is_separator(name, meta)
-            active = active_states.get(name, True)
 
             # Buscar si ya existe en la DB
             existing = db_by_name.get(name) or db_by_name_norm.get(name_norm)
 
             if existing:
-                # NO actualizar prioridad (se mantiene la de la DB para no romper el orden)
-                # Solo actualizar: estado activo, version, categoria, nexus, link, comentario
+                # Actualizar prioridad desde el orden de modlist.txt
+                existing["priority"] = priority
+                existing["raw_index"] = priority
+                # Tambien actualizar: estado activo, version, nexus, link, comentario
                 existing["active"] = active
                 existing["deleted_from_disk"] = False
                 existing["missing"] = not mod_dir.exists()
+                existing["is_dlc"] = is_dlc
 
                 # Version: siempre actualizar desde meta.ini
                 existing["version"] = meta.get("version", existing.get("version", ""))
 
-                # Categoria: NO actualizar desde meta.ini en Sincronizar desde MO2
-                # (las categorias se mantienen como estan en la DB; solo se actualizan
-                # desde el CSV de MO2 con el boton "Actualizar desde CSV")
+                # Categoria: actualizar desde meta.ini resolviendo ID a nombre
+                if not existing.get("category_override"):
+                    cat_val = meta.get("category", "")
+                    if cat_val:
+                        existing["category"] = self._resolve_category(cat_val, cats)
 
                 # Nexus ID y link: solo si no hay override
-                nexus_id = meta.get("modid", "")
-                if nexus_id == "0":
-                    nexus_id = ""
+                nexus_id = self._normalize_nexus_id(meta.get("modid", ""))
                 if nexus_id:
                     existing["nexus_id"] = nexus_id
                 if not existing.get("link_override"):
-                    if nexus_id:
-                        existing["link"] = f"https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}"
-                    elif meta.get("url", ""):
-                        existing["link"] = meta.get("url", "")
-                    else:
-                        existing["link"] = existing.get("link", "")
+                    existing["link"] = self._build_nexus_link(nexus_id, meta.get("url", "") or existing.get("link", ""))
 
                 # file_ids y version_links desde [installedFiles] del meta.ini
                 file_ids = meta.get("file_ids", [])
                 existing["file_ids"] = file_ids
-                version_links = []
-                if nexus_id and file_ids:
-                    for fid in file_ids:
-                        version_links.append(
-                            f"https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}?tab=files&file_id={fid}"
-                        )
-                existing["version_links"] = version_links
+                existing["version_links"] = self._build_version_links(nexus_id, file_ids)
 
                 # Comentario: comparar y actualizar si cambio en meta.ini
                 meta_comment = (meta.get("comments", "") or "").strip()
@@ -4307,10 +5078,14 @@ class ModlistReader:
                 if is_sep:
                     existing["display_name"] = clean_sep_name(existing.get("display_name", name))
 
+                # Limpiar flag _pending_meta_sync: este mod fue procesado con
+                # meta.ini completo, ya no esta pendiente de sync manual
+                existing.pop("_pending_meta_sync", None)
+
                 updated_mods.append(existing)
                 seen_names.add(existing["name"])
             else:
-                # Mod nuevo: asignar prioridad = max_priority + 1 (al final)
+                # Mod nuevo: usar prioridad del orden de modlist.txt
                 # Si el mod fue olvidado por el usuario Y la carpeta no existe,
                 # no volver a agregarlo. Si la carpeta existe (reinstalado),
                 # agregarlo y quitarlo de _forgotten.
@@ -4318,8 +5093,7 @@ class ModlistReader:
                     continue
                 if name in forgotten and mod_dir.exists():
                     forgotten.discard(name)
-                max_priority += 1
-                priority = max_priority
+                # Usar la prioridad del orden de modlist.txt
                 if is_sep:
                     display = clean_sep_name(meta.get("name", "") or name)
                     new_mod = {
@@ -4329,34 +5103,27 @@ class ModlistReader:
                         "category": "", "category_id": "", "version": "",
                         "comment": meta.get("comments", ""), "comment2": "", "link": "",
                         "nexus_id": "", "tags": [], "mod_path": str(mod_dir),
+                        "is_dlc": False,
                     }
                 else:
-                    nexus_id = meta.get("modid", "")
-                    if nexus_id == "0":
-                        nexus_id = ""
-                    # Construir link: usar nexus_id si existe, sino usar url del meta.ini
-                if nexus_id:
-                    link = f"https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}"
-                else:
-                    link = meta.get("url", "")
+                    nexus_id = self._normalize_nexus_id(meta.get("modid", ""))
+                    link = self._build_nexus_link(nexus_id, meta.get("url", ""))
                     file_ids = meta.get("file_ids", [])
-                    version_links = []
-                    if nexus_id and file_ids:
-                        for fid in file_ids:
-                            version_links.append(
-                                f"https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}?tab=files&file_id={fid}"
-                            )
+                    version_links = self._build_version_links(nexus_id, file_ids)
                     new_mod = {
                         "name": name, "display_name": meta.get("name", name), "active": active,
                         "priority": priority, "raw_index": priority, "is_separator": False,
                         "missing": not mod_dir.exists(), "deleted_from_disk": False,
-                        "category": meta.get("category", ""), "category_id": "",
+                        "category": self._resolve_category(meta.get("category", ""), cats), "category_id": "",
                         "version": meta.get("version", ""), "installation": "",
                         "comment": meta.get("comments", ""), "comment2": "",
                         "link": link, "nexus_id": nexus_id, "tags": [],
                         "mod_path": str(mod_dir),
                         "file_ids": file_ids, "version_links": version_links,
+                        "is_dlc": is_dlc,
                     }
+                    # Limpiar flag _pending_meta_sync: mod nuevo ya tiene datos completos
+                    new_mod.pop("_pending_meta_sync", None)
                 updated_mods.append(new_mod)
                 seen_names.add(name)
 
@@ -4389,20 +5156,145 @@ class ModlistReader:
     # ------------------------------------------------------------------ #
     # Helpers
     # ------------------------------------------------------------------ #
-    def _is_separator(self, name, meta):
-        notes = (meta.get("notes") or "").lower().strip()
-        if notes == "separator":
-            return True
-        if name.lower().endswith("_separator"):
-            return True
-        if name.startswith("_"):
-            return True
-        return False
+    def _is_separator(self, name, meta=None):
+        """Detecta si un mod es un separador de MO2.
+
+        MO2 marca los separadores con el sufijo '_separator' en el nombre.
+        Esto es definitivo: si el nombre termina asi, ES un separador.
+
+        El parametro meta se mantiene por compatibilidad con llamadas
+        existentes pero ya no se usa — la deteccion es 100% por nombre.
+
+        IMPORTANTE: el prefijo '_' NO es indicador de separador. Hay mods
+        normales como '_Fuse00_ArmorRagnar_Vanilla' que empiezan con '_' pero
+        no son separadores. Solo el sufijo '_separator' indica separador.
+        """
+        return name.lower().endswith("_separator")
+
+    def _read_categories(self):
+        """Lee categories.dat de MO2 y devuelve {id: name}.
+
+        El archivo tiene formato: ID|Name|0 (una linea por categoria)
+        Se busca en: <MO2_base>/categories.dat
+
+        Si no se encuentra el archivo, se usa un mapa predefinido con las
+        categorias de Skyrim Special Edition obtenidas de:
+        https://www.nexusmods.com/skyrimspecialedition/mods/98116
+
+        Cachea por (mtime, size) del categories.dat para evitar releerlo
+        en cada llamada (se llama en read_modlist, _sync_with_modlist_txt,
+        refresh_from_mo2, etc.).
+        """
+        cat_path = self.base_path / "categories.dat"
+        if cat_path.exists():
+            try:
+                st = cat_path.stat()
+                cache = getattr(self, "_cats_cache", None)
+                if cache is None:
+                    cache = {}
+                    self._cats_cache = cache
+                cached = cache.get(str(cat_path))
+                if cached and cached[0] == st.st_mtime and cached[1] == st.st_size:
+                    return cached[2]
+
+                cats = {}
+                for line in cat_path.read_text(encoding="utf-8", errors="replace").splitlines():
+                    line = line.strip()
+                    if not line or "|" not in line:
+                        continue
+                    parts = line.split("|")
+                    if len(parts) >= 2:
+                        cat_id = parts[0].strip()
+                        cat_name = parts[1].strip()
+                        if cat_id and cat_name:
+                            cats[cat_id] = cat_name
+                if cats:
+                    cache[str(cat_path)] = (st.st_mtime, st.st_size, cats)
+                    return cats
+            except Exception:
+                pass
+        # Fallback: categorias predefinidas de Skyrim Special Edition
+        # Fuente: https://www.nexusmods.com/skyrimspecialedition/mods/98116
+        return {
+            "1": "Skyrim Special Edition", "2": "Buildings", "3": "Gameplay",
+            "4": "Guilds/Factions", "5": "Body, Face, and Hair",
+            "6": "Items and Objects - Player", "7": "Miscellaneous",
+            "8": "Models and Textures", "9": "NPC",
+            "10": "Races, Classes, and Birthsigns", "11": "Quests and Adventures",
+            "12": "Weapons and Armour", "13": "Utilities", "14": "Cheats and God items",
+            "15": "User Interface", "16": "Save Games", "17": "Animation",
+            "18": "Cities, Towns, Villages, and Hamlets", "19": "Armour",
+            "20": "Weapons", "21": "Clothing and Accessories",
+            "22": "Visuals and Graphics", "23": "Followers & Companions - Creatures",
+            "24": "Player homes", "25": "Skills and Leveling", "26": "Environmental",
+            "27": "Magic - Spells & Enchantments", "28": "Stealth", "29": "Combat",
+            "30": "Immersion", "31": "Overhauls", "32": "Modders Resources",
+            "33": "Creatures and Mounts", "34": "Patches",
+            "35": "Items and Objects - World", "36": "Dungeons",
+            "37": "Locations -  New", "38": "Locations - Vanilla",
+            "39": "Collectables, Treasure Hunts, and Puzzles", "40": "Magic - Gameplay",
+            "41": "Alchemy", "42": "Bug Fixes", "43": "Followers & Companions",
+            "44": "Presets - ENB and ReShade", "45": "Crafting",
+            "46": "Armour - Shields", "47": "Shouts", "48": "VR", "49": "Audio",
+            "-1": "",
+        }
+
+    def _resolve_category(self, cat_value, cats_map):
+        """Convierte un ID de categoria a su nombre.
+
+        meta.ini guarda el category como un numero con comillas y coma:
+        category="15," o category=42. o category="-1,"
+        categories.dat lo mapea: 15|User Interface|0
+        Tambien limpia comillas dobles, comas y puntos finales.
+        """
+        if not cat_value:
+            return ""
+        # Limpiar: quitar comillas dobles, comas finales, puntos finales, espacios
+        cat_clean = cat_value.strip()
+        cat_clean = cat_clean.strip('"').strip("'").strip()
+        cat_clean = cat_clean.rstrip(",").rstrip(".").strip()
+        cat_clean = cat_clean.strip('"').strip("'").strip()
+        if not cat_clean:
+            return ""
+        # Si ya es texto (no numero), devolverlo tal cual
+        if not cat_clean.lstrip("-").isdigit():
+            return cat_clean
+        # Buscar en el mapa de categorias
+        return cats_map.get(cat_clean, cat_value)
 
     def _read_meta_ini(self, mod_dir):
+        """Lee meta.ini de un mod y devuelve dict con los campos relevantes.
+
+        Cachea por (mtime, size) para evitar releer el mismo archivo cuando
+        se llama multiples veces en la misma sesion (por ejemplo, en
+        _enrich_comments_from_meta que lee comments y luego version).
+        El cache se invalida automaticamente si el archivo cambia en disco.
+
+        NOTA sobre comillas: MO2 guarda los valores de meta.ini con comillas
+        dobles externas cuando contienen espacios o caracteres especiales:
+          comments=ya instale parches              (sin comillas)
+          comments="ultima version para 1.6.1170"  (con comillas)
+        configparser NO quita estas comillas automaticamente, asi que
+        las quitamos manualmente con _strip_meta_quotes().
+        """
         meta_path = mod_dir / "meta.ini"
         if not meta_path.exists():
             return {}
+        try:
+            st = meta_path.stat()
+        except Exception:
+            return {}
+
+        # Cache hit: si el archivo no cambio, devolver cache
+        cache_key = str(meta_path)
+        cache = getattr(self, "_meta_cache", None)
+        if cache is None:
+            cache = {}
+            self._meta_cache = cache
+        cached = cache.get(cache_key)
+        if cached and cached[0] == st.st_mtime and cached[1] == st.st_size:
+            return cached[2]
+
         try:
             cp = configparser.ConfigParser(interpolation=None, strict=False)
             cp.read(meta_path, encoding="utf-8")
@@ -4413,7 +5305,11 @@ class ModlistReader:
             for k in ("modid","name","version","installation","category",
                       "comments","tags","nexusFileStatus","notes","priority","url"):
                 if cp.has_option("General", k):
-                    out[k] = cp.get("General", k, fallback="").strip()
+                    # .strip() quita espacios externos, _strip_meta_quotes
+                    # quita comillas dobles externas que MO2 anade cuando
+                    # el valor contiene espacios o caracteres especiales.
+                    raw = cp.get("General", k, fallback="").strip()
+                    out[k] = self._strip_meta_quotes(raw)
         # Leer la seccion [installedFiles] para obtener el file_id
         # Estructura tipica:
         #   [installedFiles]
@@ -4434,7 +5330,37 @@ class ModlistReader:
         if file_ids:
             out["file_ids"] = file_ids
             out["file_id"] = file_ids[0]  # primer file_id para compatibilidad
+        # Guardar en cache
+        cache[cache_key] = (st.st_mtime, st.st_size, out)
         return out
+
+    @staticmethod
+    def _strip_meta_quotes(value):
+        """Quita comillas dobles externas de un valor de meta.ini.
+
+        MO2 guarda algunos valores con comillas dobles cuando contienen
+        espacios o caracteres especiales (ej: comments="texto con espacios").
+        configparser NO las quita, asi que lo hacemos manualmente.
+
+        Solo quita comillas EXTERNAS (la primera y ultima si ambas son '"').
+        No toca comillas internas (ej: si el comentario tiene "texto" en medio).
+        """
+        if not value or len(value) < 2:
+            return value
+        if value[0] == '"' and value[-1] == '"':
+            return value[1:-1]
+        return value
+
+    def _invalidate_meta_cache(self, mod_dir=None):
+        """Invalida el cache de meta.ini.
+        Si se pasa mod_dir, solo invalida ese mod. Si no, invalida todo."""
+        cache = getattr(self, "_meta_cache", None)
+        if cache is None:
+            return
+        if mod_dir is None:
+            cache.clear()
+        else:
+            cache.pop(str(mod_dir / "meta.ini"), None)
 
     def _enrich_comments_from_meta(self, db):
         """Carga comentarios desde meta.ini de cada mod.
@@ -4444,13 +5370,20 @@ class ModlistReader:
         - Los respaldos capturen el comentario real de MO2
         - Al restaurar un respaldo, el comentario se actualice desde meta.ini
           si el mod sigue instalado
+
+        Ademas: limpia el flag _pending_meta_sync de todos los mods procesados
+        (este flag lo setea _sync_order_only cuando anade mods nuevos como stub).
         """
         mods = db.get("mods", [])
         for mod in mods:
             if mod.get("is_separator"):
+                # Separadores: igualmente limpiar flag si estaba pendiente
+                mod.pop("_pending_meta_sync", None)
                 continue
             # Si el usuario edito el comentario, no sobrescribir
             if mod.get("_comment_user_edited"):
+                # Pero si limpiar el flag de pendiente (ya esta en la DB)
+                mod.pop("_pending_meta_sync", None)
                 continue
             # Cargar comentario desde meta.ini (siempre, para mantener sincronizado)
             mod_dir = self.mods_dir / mod["name"]
@@ -4461,25 +5394,43 @@ class ModlistReader:
                     mod["comment"] = comments
                 elif not mod.get("comment"):
                     mod["comment"] = ""
+                # Tambien enriquecer la version si esta vacia (usar el mismo meta)
+                if not mod.get("version") and meta.get("version"):
+                    mod["version"] = meta["version"]
+                # Si el mod era un stub (anadido por light sync sin datos),
+                # poblar tambien nexus_id, link, display_name, file_ids, etc.
+                if mod.get("_pending_meta_sync"):
+                    nexus_id = self._normalize_nexus_id(meta.get("modid", ""))
+                    mod["nexus_id"] = nexus_id
+                    mod["link"] = self._build_nexus_link(nexus_id, meta.get("url", ""))
+                    mod["display_name"] = meta.get("name", mod["name"])
+                    mod["installation"] = meta.get("installation", "")
+                    file_ids = meta.get("file_ids", [])
+                    mod["file_ids"] = file_ids
+                    mod["version_links"] = self._build_version_links(nexus_id, file_ids)
+                    # Categoria
+                    if not mod.get("category"):
+                        mod["category"] = self._resolve_category(meta.get("category", ""), self._read_categories())
             # Si el mod no existe en disco, mantener el comentario del respaldo
-            # Tambien enriquecer la version si esta vacia
-            if not mod.get("version"):
-                mod_dir = self.mods_dir / mod["name"]
-                if mod_dir.exists():
-                    meta = self._read_meta_ini(mod_dir)
-                    if meta.get("version"):
-                        mod["version"] = meta["version"]
+            # Limpiar flag _pending_meta_sync: el mod fue procesado con meta.ini
+            mod.pop("_pending_meta_sync", None)
 
     def _filter_dlcs(self, mods):
-        """Oculta DLCs del juego y todo lo que este antes del primer separador."""
-        first_sep_idx = None
-        for i, m in enumerate(mods):
-            if m.get("is_separator"):
-                first_sep_idx = i
-                break
-        if first_sep_idx is not None:
-            return mods[first_sep_idx:]
-        return [m for m in mods if not is_dlc_name(m.get("display_name","") or m.get("name",""))]
+        """Oculta DLCs del juego (Skyrim.esm, Dawnguard, Creation Club, etc.).
+
+        MO2 marca los DLCs en modlist.txt con el prefijo '*'. Ese flag se
+        propaga a cada mod como is_dlc=True al leer modlist.txt.
+
+        Esta funcion SOLO filtra por el flag is_dlc. No usa heuristicas de
+        nombre (como "skyrim" o "anniversary" en el nombre) porque causaban
+        falsos positivos: "All in one Address Library (Anniversary Edition)"
+        y "Unofficial Skyrim Creation Club Content Patches" son mods normales
+        que casualmente contienen esas palabras.
+
+        Si un mod no tiene el flag is_dlc (ej: importado desde CSV), se
+        mantiene visible. El usuario puede ocultarlo manualmente si lo desea.
+        """
+        return [m for m in mods if not m.get("is_dlc")]
 
     def _calc_stats(self, mods):
         active = sum(1 for m in mods if m.get("active") and not m.get("is_separator"))
@@ -4939,7 +5890,7 @@ class Store:
 # ==================== API ====================
 
 class Api:
-    def __init__(self, reader, store, profile_dir, base_path, translations_dir=None, organizer=None, logger=None):
+    def __init__(self, reader, store, profile_dir, base_path, translations_dir=None, organizer=None, logger=None, plugin=None):
         self.reader = reader
         self.store = store
         self.profile_dir = Path(profile_dir)
@@ -4947,10 +5898,22 @@ class Api:
         self.translations_dir = Path(translations_dir) if translations_dir else None
         self.organizer = organizer
         self.logger = logger
-        self.nemesis_detector = NemesisDetector(base_path, profile_dir, base_path / "mods")
+        # BUG 2 fix: usar organizer.modsPath() si esta disponible
+        nemesis_mods_dir = None
+        if organizer is not None:
+            try:
+                mp = Path(organizer.modsPath())
+                if mp.exists():
+                    nemesis_mods_dir = mp
+            except Exception:
+                pass
+        if nemesis_mods_dir is None:
+            nemesis_mods_dir = self.base_path / "mods"
+        self.nemesis_detector = NemesisDetector(base_path, profile_dir, nemesis_mods_dir)
         self.loll = LoadOrderLibrary()
         self.snapshots = SnapshotManager(store.store_dir)
         self._extension = None  # Referencia a la extension cargada (la asigna ModlistManager)
+        self.plugin = plugin  # Referencia al ModlistManager (para /api/profiles y /api/switch_profile)
 
     def handle(self, method, path, body, query):
         try:
@@ -4995,6 +5958,23 @@ class Api:
                 return self._update_mod(path, body)
             if path.startswith("/api/collapse/") and method == "POST":
                 return self._set_collapse(path, body)
+            # Batch collapse: guardar todos los estados de colapso de una vez.
+            # Evita la race condition de disparar N llamadas /api/collapse/
+            # concurrentes (cada una lee-modifica-escribe collapse_state.json
+            # y se pisan entre si, perdiendo todos menos el ultimo).
+            if path == "/api/collapse_batch" and method == "POST":
+                try:
+                    payload = json.loads(body.decode("utf-8")) if body else {}
+                except Exception:
+                    return (HTTPStatus.BAD_REQUEST, {"ok": False, "error": "JSON invalido"})
+                states = payload.get("states", {})
+                if not isinstance(states, dict):
+                    return (HTTPStatus.BAD_REQUEST, {"ok": False, "error": "states debe ser un objeto {name: bool}"})
+                # Reemplazar todo el estado de colapso de una sola vez
+                # (lectura-escritura atomica, sin race condition)
+                clean_states = {str(k): bool(v) for k, v in states.items()}
+                self.store.save_collapse_state(clean_states)
+                return (HTTPStatus.OK, {"ok": True, "data": {"count": len(clean_states)}})
             # Backups (separados: modlist y nemesis)
             if path == "/api/backups" and method == "GET":
                 return self._list_backups(query)
@@ -5113,8 +6093,10 @@ class Api:
                 label = payload.get("label", "")
                 if backup_type == "mods":
                     # Respaldar lista de mods con version_links
+                    # light_sync=True: solo lee modlist.txt para orden/activos,
+                    # no lee meta.ini (la DB ya tiene los datos del ultimo sync manual)
                     memory = self.store.load_memory()
-                    data = self.reader.read_modlist_with_memory(memory)
+                    data = self.reader.read_modlist_with_memory(memory, light_sync=True)
                     entries = []
                     for m in data.get("mods", []):
                         if m.get("is_separator"): continue
@@ -5156,6 +6138,15 @@ class Api:
                 if not ok:
                     return (HTTPStatus.NOT_FOUND, {"ok": False, "error": "Respaldo no encontrado"})
                 return (HTTPStatus.OK, {"ok": True})
+            # Version diff: compara la DB actual contra un backup del modlist
+            # y devuelve los mods cuya version ha cambiado. Tambien devuelve
+            # la lista de backups disponibles (manuales + auto) para el dropdown.
+            if path == "/api/version_diff" and method == "GET":
+                return self._version_diff(query)
+            # Listar backups del modlist (manuales + auto-backups) con info
+            # para el dropdown de la sub-pestaña "Actualizadas".
+            if path == "/api/list_modlist_backups" and method == "GET":
+                return self._list_modlist_backups()
             # Extension API: rutas que empiezan con /api/translation/ se delegan
             # al modulo de extension si esta cargado
             if path.startswith("/api/translation/"):
@@ -5174,6 +6165,53 @@ class Api:
                         if self.logger: self.logger.exception("Extension API error: %s", e)
                         return (HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(e)})
                 return (HTTPStatus.NOT_FOUND, {"ok": False, "error": "Extension no disponible"})
+            # Profile management
+            if path == "/api/profiles" and method == "GET":
+                if self.plugin is None:
+                    return (HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "plugin no disponible"})
+                profiles = self.plugin._list_profiles()
+                return (HTTPStatus.OK, {"ok": True, "data": profiles})
+            if path == "/api/switch_profile" and method == "POST":
+                try:
+                    payload = json.loads(body.decode("utf-8")) if body else {}
+                except Exception:
+                    return (HTTPStatus.BAD_REQUEST, {"ok": False, "error": "JSON invalido"})
+                profile_name = payload.get("name", "")
+                if not profile_name:
+                    return (HTTPStatus.BAD_REQUEST, {"ok": False, "error": "name requerido"})
+                if self.plugin is None:
+                    return (HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "plugin no disponible"})
+                ok, msg = self.plugin._switch_profile(profile_name)
+                if ok:
+                    return (HTTPStatus.OK, {"ok": True, "data": {"message": msg}})
+                return (HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": msg})
+            if path == "/api/set_data_source" and method == "POST":
+                try:
+                    payload = json.loads(body.decode("utf-8")) if body else {}
+                except Exception:
+                    return (HTTPStatus.BAD_REQUEST, {"ok": False, "error": "JSON invalido"})
+                source = payload.get("source", "")
+                if source not in ("csv", "modlist"):
+                    return (HTTPStatus.BAD_REQUEST, {"ok": False, "error": "source debe ser 'csv' o 'modlist'"})
+                try:
+                    if self.organizer is not None:
+                        self.organizer.setPluginSetting("Modlist Manager", "data_source", source)
+                    # Borrar database.json para que el nuevo modo se aplique desde cero
+                    # en la siguiente lectura. memory.json se preserva (es del usuario).
+                    try:
+                        if self.reader.db_path.exists():
+                            self.reader.db_path.unlink()
+                        # Invalidar caches para que la proxima lectura lea fresco
+                        self.reader._invalidate_meta_cache()
+                        if hasattr(self.reader, '_cats_cache'):
+                            self.reader._cats_cache.clear()
+                    except Exception:
+                        pass
+                    # Actualizar self.reader.data_source para que _get_state lo refleje
+                    self.reader.data_source = source
+                    return (HTTPStatus.OK, {"ok": True, "data": {"source": source}})
+                except Exception as e:
+                    return (HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(e)})
             return (HTTPStatus.NOT_FOUND, {"ok": False, "error": "Ruta no encontrada"})
         except Exception as e:
             if self.logger: self.logger.exception("API error %s %s: %s", method, path, e)
@@ -5181,13 +6219,18 @@ class Api:
 
     def _get_state(self):
         memory = self.store.load_memory()
-        data = self.reader.read_modlist_with_memory(memory)
+        # light_sync=True: modo optimizado para polling. Solo lee modlist.txt,
+        # NO lee meta.ini de cada mod. Los comentarios/datos se actualizan via
+        # los botones manuales "Sincronizar desde MO2" o "Actualizar desde CSV".
+        data = self.reader.read_modlist_with_memory(memory, light_sync=True)
         data["mods"] = renumber_priority(data["mods"])
         sections = group_by_separators(data["mods"])
         sections = apply_collapse_state(sections, self.store.load_collapse_state())
         data["sections"] = sections
         data["store_dir"] = str(self.store.store_dir)
         data["base_path"] = str(self.base_path)
+        # Exponer data_source actual para que la UI pueda mostrarlo/cambiarlo
+        data["data_source"] = self.reader.data_source or ""
         return (HTTPStatus.OK, {"ok": True, "data": data})
 
     def _get_plugins(self):
@@ -5398,37 +6441,41 @@ class Api:
             return (HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(e)})
 
     def _refresh_from_csv(self):
-        """Fuerza la re-importacion de datos desde el CSV de MO2.
+        """Re-importa TODOS los datos desde el CSV de MO2.
 
-        Actualizacion forzada: recarga prioridad, categoria, version, comentario MO2,
-        link y estado activo desde el CSV. Resetea los overrides (categoria editada,
-        link editado) en memory.json. Elimina de memory.json los mods que no estan
-        en el CSV. Mantiene: comentarios personales (comment2) y tags de mods que
-        si estan en el CSV.
+        Esto recarga prioridad, categoria, version, comentario MO2, link y estado
+        activo desde el CSV. Se reemplaza la informacion actual del modlist.
+        Solo se mantienen los comentarios 2 (editables por el usuario).
+
+        NO lee meta.ini de cada mod, por lo que es mucho mas rapido para listas
+        grandes (3000+ mods).
+
+        Si no hay CSV, devuelve error indicando que debe exportarse primero.
         """
         try:
-            # Leer el CSV para saber que mods existen
             csv_mods = self.reader._read_csv_mods()
-            if csv_mods is not None:
-                def norm(n):
-                    return n[:-len("_separator")] if n.lower().endswith("_separator") else n
-                csv_names = set()
-                csv_names_norm = set()
-                for m in csv_mods:
-                    csv_names.add(m["name"])
-                    csv_names_norm.add(norm(m["name"]))
+            if csv_mods is None:
+                return (HTTPStatus.NOT_FOUND, {"ok": False, "error": "csv_not_found"})
+            # Hay CSV: usar el flujo normal de importacion desde CSV
+            def norm(n):
+                return n[:-len("_separator")] if n.lower().endswith("_separator") else n
+            csv_names = set()
+            csv_names_norm = set()
+            for m in csv_mods:
+                csv_names.add(m["name"])
+                csv_names_norm.add(norm(m["name"]))
 
-                # Limpiar memory.json: quitar overrides y eliminar mods no en CSV
-                memory = self.store.load_memory()
-                mem_mods = memory.get("mods", {})
-                for modname in list(mem_mods.keys()):
-                    name_norm = norm(modname)
-                    if modname not in csv_names and name_norm not in csv_names_norm:
-                        del mem_mods[modname]
-                    else:
-                        mem_mods[modname].pop("category", None)
-                        mem_mods[modname].pop("link_override", None)
-                self.store.save_memory(memory)
+            # Limpiar memory.json: quitar overrides y eliminar mods no en CSV
+            memory = self.store.load_memory()
+            mem_mods = memory.get("mods", {})
+            for modname in list(mem_mods.keys()):
+                name_norm = norm(modname)
+                if modname not in csv_names and name_norm not in csv_names_norm:
+                    del mem_mods[modname]
+                else:
+                    mem_mods[modname].pop("category", None)
+                    mem_mods[modname].pop("link_override", None)
+            self.store.save_memory(memory)
 
             data = self.reader.read_modlist(force_csv_import=True)
             data["mods"] = renumber_priority(data["mods"])
@@ -5446,7 +6493,9 @@ class Api:
             db = self.reader.refresh_from_mo2()
             mods = db.get("mods", [])
             memory = self.store.load_memory()
-            data = self.reader.read_modlist_with_memory(memory)
+            # light_sync=True: refresh_from_mo2 ya leyo todos los meta.ini,
+            # aqui solo aplicamos memory overrides sin volver a leer meta.ini.
+            data = self.reader.read_modlist_with_memory(memory, light_sync=True)
             data["mods"] = renumber_priority(data["mods"])
             return (HTTPStatus.OK, {"ok": True, "data": {"updated": len(mods), "stats": data["stats"]}})
         except Exception as e:
@@ -5463,7 +6512,11 @@ class Api:
         """
         try:
             memory = self.store.load_memory()
-            data = self.reader.read_modlist_with_memory(memory)
+            # light_sync=True: generamos CSV desde el estado actual de la DB,
+            # no necesitamos leer meta.ini (los datos ya estan en la DB).
+            # Si el usuario quiere datos frescos, debe usar "Sincronizar desde
+            # MO2" o "Actualizar desde CSV" primero.
+            data = self.reader.read_modlist_with_memory(memory, light_sync=True)
             mods = data["mods"]
             # Generar CSV con las mismas columnas que MO2
             buf = io.StringIO()
@@ -5576,7 +6629,8 @@ class Api:
 
     def _get_mods(self):
         memory = self.store.load_memory()
-        data = self.reader.read_modlist_with_memory(memory)
+        # light_sync=True: solo devuelve el estado actual de la DB, no lee meta.ini
+        data = self.reader.read_modlist_with_memory(memory, light_sync=True)
         data["mods"] = renumber_priority(data["mods"])
         return (HTTPStatus.OK, {"ok": True, "data": data["mods"]})
 
@@ -5709,7 +6763,8 @@ class Api:
 
     def _create_snapshot(self):
         memory = self.store.load_memory()
-        data = self.reader.read_modlist_with_memory(memory)
+        # light_sync=True: snapshot del estado actual de la DB, no lee meta.ini
+        data = self.reader.read_modlist_with_memory(memory, light_sync=True)
         snap = self.snapshots.create_snapshot(data)
         return snap
 
@@ -5840,6 +6895,195 @@ class Api:
             return (HTTPStatus.OK, {"ok": True})
         return (HTTPStatus.NOT_FOUND, {"ok": False, "error": "backup no encontrado"})
 
+    def _list_modlist_backups(self):
+        """Lista todos los backups del modlist (manuales y auto-backups).
+
+        Devuelve una lista con: filename, label, date (created_at), entries (nº de mods),
+        y auto (bool) para distinguir auto-backups de los manuales.
+        Usado por el dropdown de la sub-pestaña "Actualizadas".
+        """
+        try:
+            backups_dir = self._backups_dir()
+            out = []
+            # backups manuales: backup_modlist_*.json
+            # auto-backup: auto_backup.json (archivo unico, sin timestamp)
+            # auto-backup antiguos: auto_backup_*.json (se limpian automaticamente)
+            for pattern in ("backup_modlist_*.json", "auto_backup.json", "auto_backup_*.json"):
+                if not backups_dir.exists():
+                    continue
+                for f in sorted(backups_dir.glob(pattern), reverse=True):
+                    try:
+                        data = json.loads(f.read_text(encoding="utf-8"))
+                    except Exception:
+                        continue
+                    mods = []
+                    db = data.get("database", {})
+                    if isinstance(db, dict):
+                        mods = db.get("mods", [])
+                    is_auto = f.name.startswith("auto_backup_")
+                    out.append({
+                        "filename": f.name,
+                        "label": data.get("label", ("Auto-backup" if is_auto else f.stem)),
+                        "date": data.get("created_at", ""),
+                        "created_at": data.get("created_at", ""),
+                        "entries": len(mods),
+                        "auto": is_auto,
+                        "type": data.get("type", "modlist"),
+                    })
+            # Ordenar por fecha descendente (mas recientes primero)
+            out.sort(key=lambda b: b.get("date", "") or "", reverse=True)
+            return (HTTPStatus.OK, {"ok": True, "data": out})
+        except Exception as e:
+            return (HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(e)})
+
+    def _version_diff(self, query):
+        """Compara la DB actual contra un backup y devuelve los mods con version cambiada.
+
+        Query param: backup = filename del backup a comparar (en backups_dir).
+        Devuelve: {updates: [...], backups: [...]}
+        Cada update tiene: name, display_name, active, priority, is_separator, is_dlc,
+        old_version, current_version, nexus_id, link, old_file_ids, current_file_ids,
+        old_version_links, current_version_links, _sepName (separador del padre en la DB actual).
+        Tambien devuelve la lista de backups disponibles (manuales + auto) para el dropdown.
+        """
+        try:
+            backup_filename = (query or {}).get("backup", "").strip()
+            # Lista de backups para el dropdown (siempre se devuelve)
+            backups_list_status, backups_list_payload = self._list_modlist_backups()
+            backups_list = backups_list_payload.get("data", []) if backups_list_payload else []
+            if not backup_filename:
+                return (HTTPStatus.OK, {"ok": True, "data": {"updates": [], "backups": backups_list}})
+            if "/" in backup_filename or "\\" in backup_filename or ".." in backup_filename:
+                return (HTTPStatus.BAD_REQUEST, {"ok": False, "error": "filename invalido"})
+            backup_path = self._backups_dir() / backup_filename
+            if not backup_path.exists():
+                return (HTTPStatus.NOT_FOUND, {"ok": False, "error": "backup no encontrado"})
+            try:
+                backup_data = json.loads(backup_path.read_text(encoding="utf-8"))
+            except Exception as e:
+                return (HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": f"backup corrupto: {e}"})
+            backup_db = backup_data.get("database", {})
+            if not isinstance(backup_db, dict):
+                backup_db = {"mods": []}
+            backup_mods = backup_db.get("mods", [])
+            # Indexar mods del backup por name (clave unica: nombre de carpeta del mod)
+            backup_by_name = {}
+            for m in backup_mods:
+                if not isinstance(m, dict):
+                    continue
+                mname = m.get("name", "")
+                if mname:
+                    backup_by_name[mname] = m
+            # Cargar DB actual
+            current_db = self.reader._load_database() or {"mods": []}
+            current_mods = current_db.get("mods", [])
+            # Construir el mapeo separador->mods en la DB actual: recorrer mods
+            # ordenados por priority; cuando encontramos un separador, actualizamos
+            # el "current_sep"; los mods posteriores se asocian a ese separador.
+            # MO2 usa prioridades mas bajas = mas arriba en la lista.
+            try:
+                sorted_mods = sorted(current_mods, key=lambda m: m.get("priority", 0) if isinstance(m, dict) else 0)
+            except Exception:
+                sorted_mods = current_mods
+            current_sep_name = ""
+            sep_map = {}  # name -> sepName
+            for m in sorted_mods:
+                if not isinstance(m, dict):
+                    continue
+                if m.get("is_separator"):
+                    current_sep_name = m.get("display_name", "") or m.get("name", "")
+                else:
+                    sep_map[m.get("name", "")] = current_sep_name
+            # Comparar versiones.
+            # Los separadores se incluyen como filas de encabezado cuando
+            # hay mods actualizados debajo de ellos. Si un separador no tiene
+            # ningun mod actualizado en su seccion, no se muestra.
+            updates = []
+            # Primero: ordenar mods actuales por prioridad
+            try:
+                sorted_current = sorted(current_mods, key=lambda m: m.get("priority", 0) if isinstance(m, dict) else 0)
+            except Exception:
+                sorted_current = current_mods
+            current_sep = None  # separador actual (dict temporal)
+            current_sep_has_updates = False  # si la seccion actual tiene mods actualizados
+            for m in sorted_current:
+                if not isinstance(m, dict):
+                    continue
+                mname = m.get("name", "")
+                if m.get("is_separator"):
+                    # Si la seccion anterior tuvo actualizaciones y tenia un separador,
+                    # ya fue anadido. Ahora empezamos una nueva seccion.
+                    current_sep = m
+                    current_sep_has_updates = False
+                    continue
+                if not mname:
+                    continue
+                old = backup_by_name.get(mname)
+                if old is None:
+                    continue  # no estaba en el backup -> no se compara
+                old_version = (old.get("version", "") or "").strip()
+                cur_version = (m.get("version", "") or "").strip()
+                # Solo reportar si la version cambio (y al menos una no vacia)
+                if old_version == cur_version:
+                    continue
+                if not old_version and not cur_version:
+                    continue
+                # Si es el primer mod actualizado de esta seccion, anadir el separador primero
+                if current_sep is not None and not current_sep_has_updates:
+                    current_sep_has_updates = True
+                    updates.append({
+                        "name": current_sep.get("name", ""),
+                        "display_name": current_sep.get("display_name", current_sep.get("name", "")),
+                        "active": bool(current_sep.get("active", False)),
+                        "priority": current_sep.get("priority", 0),
+                        "is_separator": True,
+                        "is_dlc": False,
+                        "old_version": "",
+                        "current_version": "",
+                        "nexus_id": "",
+                        "link": "",
+                        "old_file_ids": [],
+                        "current_file_ids": [],
+                        "old_version_links": [],
+                        "current_version_links": [],
+                        "_sepName": "",
+                    })
+                # Link del mod (link general de nexus, no el de version especifica)
+                mod_link = m.get("link", "") or ""
+                nexus_id = m.get("nexus_id", "") or ""
+                if not mod_link and nexus_id and nexus_id != "0":
+                    mod_link = f"https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}"
+                updates.append({
+                    "name": mname,
+                    "display_name": m.get("display_name", mname),
+                    "active": bool(m.get("active", False)),
+                    "priority": m.get("priority", 0),
+                    "is_separator": False,
+                    "is_dlc": bool(m.get("is_dlc", False)),
+                    "old_version": old_version,
+                    "current_version": cur_version,
+                    "nexus_id": nexus_id,
+                    "link": mod_link,
+                    "old_file_ids": old.get("file_ids", []) or [],
+                    "current_file_ids": m.get("file_ids", []) or [],
+                    "old_version_links": old.get("version_links", []) or [],
+                    "current_version_links": m.get("version_links", []) or [],
+                    "_sepName": sep_map.get(mname, ""),
+                })
+            # Ordenar por prioridad (orden de carga) para que la tabla sea coherente
+            try:
+                updates.sort(key=lambda u: u.get("priority", 0))
+            except Exception:
+                pass
+            return (HTTPStatus.OK, {"ok": True, "data": {
+                "updates": updates,
+                "backups": backups_list,
+                "backup_file": backup_filename,
+                "backup_date": backup_data.get("created_at", ""),
+            }})
+        except Exception as e:
+            return (HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(e)})
+
     def _restore_from_json(self, body):
         """Restaura database.json (y opcionalmente memory.json) desde un JSON externo."""
         try:
@@ -5859,7 +7103,8 @@ class Api:
     def _export(self, query):
         fmt = query.get("format", "text")
         memory = self.store.load_memory()
-        data = self.reader.read_modlist_with_memory(memory)
+        # light_sync=True: exporta el estado actual de la DB, no lee meta.ini
+        data = self.reader.read_modlist_with_memory(memory, light_sync=True)
         if fmt == "csv":
             return (HTTPStatus.OK, {"ok": True, "data": self.loll.export_modlist_csv(data["mods"]), "format": "csv"})
         return (HTTPStatus.OK, {"ok": True, "data": self.loll.export_modlist_text(data["mods"]), "format": "text"})
@@ -5960,11 +7205,10 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
         val = self._get_setting(key, default)
         return str(val) if val is not None else default
 
-    # ==================== Debug log (con rotacion diaria) ====================
+    # ==================== Debug log ====================
     def _debug_log(self, message):
         if not self._get_bool_setting('debug_enabled', False):
             # Debug desactivado: limpiar archivo residual si existe y esta vacio
-            # (puede quedar de una sesion anterior con debug activado)
             if self._debug_log_path is None and self._organizer is not None:
                 try:
                     p = Path(self._organizer.basePath()) / "modlist_manager_debug.txt"
@@ -5979,41 +7223,22 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
                     self._debug_log_path = Path(self._organizer.basePath()) / "modlist_manager_debug.txt"
                 else:
                     return
-            rotation = self._get_string_setting('debug_rotation', 'daily').lower().strip()
-            if rotation == 'daily':
-                today = datetime.datetime.now().strftime("%Y-%m-%d")
-                if self._debug_log_date is None:
-                    if self._debug_log_path.exists():
-                        try:
-                            with open(self._debug_log_path, 'r', encoding='utf-8', errors='ignore') as f:
-                                first_line = f.readline()
-                            m = re.match(r'\[(\d{4}-\d{2}-\d{2})', first_line)
-                            if m:
-                                self._debug_log_date = m.group(1)
-                            else:
-                                self._debug_log_date = today
-                        except Exception:
-                            self._debug_log_date = today
-                    else:
-                        self._debug_log_date = today
-                if today != self._debug_log_date:
-                    try:
-                        rotated = self._debug_log_path.parent / f"modlist_manager_debug_{self._debug_log_date}.txt"
-                        c = 1
-                        while rotated.exists():
-                            rotated = self._debug_log_path.parent / f"modlist_manager_debug_{self._debug_log_date}_{c}.txt"
-                            c += 1
-                        self._debug_log_path.rename(rotated)
-                    except Exception:
-                        pass
-                    self._debug_log_date = today
-            elif rotation == 'never':
-                if self._debug_log_date is None:
-                    try:
-                        open(self._debug_log_path, 'w', encoding='utf-8').close()
-                    except Exception:
-                        pass
-                    self._debug_log_date = 'session-active'
+            # Un solo archivo. Al iniciar MO2 (primera llamada de la sesion),
+            # limpiar el archivo y empezar desde cero. Tambien limpiar archivos
+            # de rotacion diaria antiguos si existen (de versiones anteriores).
+            if self._debug_log_date is None:
+                # Limpiar el archivo principal (empezar fresh)
+                try:
+                    self._debug_log_path.write_text("", encoding="utf-8")
+                except Exception:
+                    pass
+                # Limpiar archivos de rotacion diaria antiguos
+                try:
+                    for old in self._debug_log_path.parent.glob("modlist_manager_debug_*.txt"):
+                        old.unlink()
+                except Exception:
+                    pass
+                self._debug_log_date = 'session-active'
             ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
             with open(self._debug_log_path, 'a', encoding='utf-8') as f:
                 f.write(f"[{ts}] {message}\n")
@@ -6024,19 +7249,27 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
     def init(self, organizer):
         self._organizer = organizer
         self._extension = None  # Extension opcional (modlist_manager_traduction.py)
+        self._current_api = None
+        self._current_reader = None
+        self._current_store = None
+        self._current_profile = None
+        self._current_profile_dir = None
         self._debug_log("=" * 60)
         self._debug_log("[INIT] Modlist Manager init() llamado")
         self._debug_log(f"[INIT] basePath() = {organizer.basePath() if organizer else 'None'}")
         self._debug_log(f"[INIT] cwd() = {Path.cwd()}")
         self._load_translations()
-        self._debug_log(f"[INIT] Idioma: {self._language} ({len(self._translations)} traducciones)")
+        self._debug_log(f"[INIT] Language: {self._language} ({len(self._translations)} translations)")
         # Cargar extension opcional si existe
         self._load_extension()
+        # El auto-backup se crea en _start_server() (no aqui) porque durante init()
+        # MO2 puede no haber cargado el perfil correcto, causando que el backup
+        # se guarde en el perfil "Default" en lugar del perfil actual.
         # Por defecto el servidor NO arranca al iniciar MO2.
         # Solo arranca cuando el usuario abre el plugin (display).
         # Si start_on_mo2_startup esta activado, arrancar el servidor ahora.
         if self._get_bool_setting('start_on_mo2_startup', False):
-            self._debug_log("[INIT] start_on_mo2_startup=True — arrancando servidor")
+            self._debug_log("[INIT] start_on_mo2_startup=True — starting server")
             self._start_server()
             self._start_heartbeat_monitor()
             if self._get_bool_setting('auto_open_browser', False):
@@ -6046,8 +7279,76 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
                     try: webbrowser.open(f"http://127.0.0.1:{self._server_port}")
                     except Exception: pass
         else:
-            self._debug_log("[INIT] start_on_mo2_startup=False — servidor se arrancara on-demand al abrir el plugin")
+            self._debug_log("[INIT] start_on_mo2_startup=False — server will start on-demand when plugin is opened")
         return True
+
+    def _create_auto_backup_if_needed(self):
+        """Crea un auto-backup del modlist una vez por sesion de MO2.
+
+        Usa un SOLO archivo (auto_backup.json) que se sobrescribe cada vez que
+        se inicia MO2. No genera multiples archivos con timestamps — para eso
+        estan los backups manuales del usuario.
+
+        Contiene: database (con todos los mods) y memory.
+        """
+        if getattr(self, "_auto_backup_done", False):
+            return
+        self._auto_backup_done = True
+        if self._organizer is None:
+            return
+        try:
+            profile_dir = self._profile_dir()
+            store_dir = profile_dir / "ModlistManager"
+            backups_dir = store_dir / "backups"
+            backups_dir.mkdir(parents=True, exist_ok=True)
+            db_path = store_dir / "database.json"
+            if not db_path.exists():
+                self._debug_log("[AUTO-BACKUP] database.json does not exist — se omite auto-backup")
+                return
+            try:
+                db = json.loads(db_path.read_text(encoding="utf-8"))
+            except Exception as e:
+                self._debug_log(f"[AUTO-BACKUP] Error reading database.json: {e}")
+                return
+            if not isinstance(db, dict):
+                db = {"mods": []}
+            # memory.json (comentarios personales, categorias editadas, etc.)
+            memory = {}
+            memory_path = store_dir / "memory.json"
+            if memory_path.exists():
+                try:
+                    memory = json.loads(memory_path.read_text(encoding="utf-8"))
+                except Exception:
+                    memory = {}
+            ts = datetime.datetime.now().isoformat(timespec="seconds")
+            # Un SOLO archivo: auto_backup.json (se sobrescribe cada vez)
+            filename = "auto_backup.json"
+            path = backups_dir / filename
+            mods = db.get("mods", [])
+            active = sum(1 for m in mods if m.get("active") and not m.get("is_separator"))
+            seps = sum(1 for m in mods if m.get("is_separator"))
+            backup = {
+                "created_at": ts,
+                "profile": profile_dir.name,
+                "type": "modlist",
+                "database": db,
+                "memory": memory,
+                "mods_count": len(mods) - seps,
+                "stats": {"total": len(mods), "active": active, "separators": seps},
+                "label": "Auto-backup",
+                "auto": True,
+            }
+            path.write_text(json.dumps(backup, ensure_ascii=False, indent=2), encoding="utf-8")
+            self._debug_log(f"[AUTO-BACKUP] Overwritten: {filename} ({len(mods)} mods)")
+            # Limpiar archivos auto_backup antiguos con timestamp (de versiones anteriores)
+            try:
+                for old in backups_dir.glob("auto_backup_*.json"):
+                    old.unlink()
+            except Exception:
+                pass
+        except Exception as e:
+            try: self._debug_log(f"[AUTO-BACKUP] Error creating auto-backup: {e}")
+            except Exception: pass
 
     def _load_extension(self):
         """Detecta y carga la extension modlist_manager_traduction.py si existe.
@@ -6078,15 +7379,15 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
         for ext_path in candidates:
             if ext_path.exists() and ext_path.is_file():
                 try:
-                    self._debug_log(f"[EXT] Cargando extension: {ext_path}")
+                    self._debug_log(f"[EXT] Loading extension: {ext_path}")
                     spec = importlib.util.spec_from_file_location("modlist_manager_traduction", str(ext_path))
                     mod = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(mod)
                     self._extension = mod
-                    self._debug_log("[EXT] Extension cargada correctamente")
+                    self._debug_log("[EXT] Extension loaded successfully")
                     return
                 except Exception as e:
-                    self._debug_log(f"[EXT] Error cargando extension: {e}")
+                    self._debug_log(f"[EXT] Error loading extension: {e}")
                     self._extension = None
                     return
         self._debug_log("[EXT] No se encontro modlist_manager_traduction.py — funcionando sin extension")
@@ -6124,7 +7425,7 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
                 self._server.shutdown()
                 self._server.server_close()
             except Exception as e:
-                self._debug_log(f"[SERVER] Error al apagar: {e}")
+                self._debug_log(f"[SERVER] Error during shutdown: {e}")
             self._server = None
             self._server_port = None
             self._debug_log("[SERVER] Servidor apagado por inactividad")
@@ -6142,7 +7443,7 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
         return self._tr("Web UI to manage the MO2 mod list: priorities, separators, categories, comments, links. Import/Export from loadorderlibrary.com, list editor, Nemesis/Pandora/Custom panel, multi-language, snapshots.")
 
     def version(self):
-        return mobase.VersionInfo(3, 2, 0)
+        return mobase.VersionInfo(6, 0, 0)
 
     def isActive(self):
         return self._organizer is not None
@@ -6156,10 +7457,10 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
                     "Start the web server when MO2 starts (if false, server starts on-demand when you open the plugin)", False),
                 mobase.PluginSetting("web_server_port",
                     "Web server port (0 = auto-select from 8765-8775)", 0),
+                mobase.PluginSetting("data_source",
+                    "Data source: 'csv' = use MO2 exported CSV (faster for large modlists, requires manual CSV export) | 'modlist' = read modlist.txt + meta.ini directly (no CSV needed, slower for 3000+ mods) | '' = ask on first launch", ""),
                 mobase.PluginSetting("debug_enabled",
-                    "Enable debug logging to modlist_manager_debug.txt", False),
-                mobase.PluginSetting("debug_rotation",
-                    "Debug log rotation: 'daily' (rename old log each day) | 'never' (overwrite on MO2 start) | 'unlimited' (append forever)", "daily"),
+                    "Enable debug logging to modlist_manager_debug.txt (cleared on each MO2 restart)", False),
             ]
         except Exception:
             return []
@@ -6218,7 +7519,7 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
         pass
 
     def display(self):
-        self._debug_log("[DISPLAY] display() llamado")
+        self._debug_log("[DISPLAY] display() called")
         try:
             if self._server is None:
                 self._start_server()
@@ -6227,10 +7528,10 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
             self._last_heartbeat = datetime.datetime.now()
             if self._server_port is not None:
                 url = f"http://127.0.0.1:{self._server_port}/"
-                self._debug_log(f"[DISPLAY] Abriendo navegador: {url}")
+                self._debug_log(f"[DISPLAY] Opening browser: {url}")
                 try: webbrowser.open(url)
                 except Exception as e:
-                    self._debug_log(f"[DISPLAY] No se pudo abrir el navegador: {e}")
+                    self._debug_log(f"[DISPLAY] Could not open browser: {e}")
             else:
                 self._debug_log("[DISPLAY] No se pudo arrancar el servidor")
         except Exception as e:
@@ -6254,6 +7555,15 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
 
     # ==================== i18n ====================
     def _tr(self, text):
+        # BUG 3 fix: MO2 llama a settings() ANTES de init(), por lo que
+        # _translations puede estar vacio cuando se construyen los tooltips
+        # de los settings. Lazy-load las traducciones en la primera llamada a _tr().
+        if not self._translations and not getattr(self, '_tr_lazy_done', False):
+            self._tr_lazy_done = True
+            try:
+                self._load_translations()
+            except Exception:
+                pass
         if self._translations and text in self._translations:
             return self._translations[text]
         return text
@@ -6344,7 +7654,51 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
         }
 
     # ==================== Server ====================
+    def _profiles_root(self):
+        """Obtiene el directorio raiz donde estan los perfiles de MO2.
+
+        MO2 permite al usuario reubicar el directorio de perfiles
+        (Settings -> Paths). Usar basePath()/profiles asume la ubicacion
+        por defecto y falla cuando el usuario tiene una instalacion
+        personalizada.
+
+        Orden de prioridad:
+        1. organizer.profile().absolutePath().parent (ubicacion real del perfil)
+        2. _current_profile_dir.parent (si el usuario cambio de perfil)
+        3. basePath()/profiles (fallback para instalaciones estandar)
+        """
+        # Intentar obtener la raiz de perfiles desde MO2
+        try:
+            if self._organizer is not None:
+                prof = self._organizer.profile()
+                if prof is not None:
+                    return Path(prof.absolutePath()).parent
+        except Exception:
+            pass
+        # Si el usuario cambio de perfil manualmente, usar ese
+        cur = getattr(self, '_current_profile_dir', None)
+        if cur:
+            return Path(cur).parent
+        # Fallback: basePath()/profiles (instalacion estandar)
+        try:
+            base = Path(self._organizer.basePath()) if self._organizer else Path.cwd()
+        except Exception:
+            base = Path.cwd()
+        return base / "profiles"
+
     def _profile_dir(self):
+        """Obtiene el directorio del perfil actual.
+        
+        Orden de prioridad:
+        1. Si _current_profile_dir fue establecido (por switch_profile manual
+           o por auto-follow), usar ese.
+        2. Si no, preguntar a MO2 cual es el perfil actual.
+        3. Si no hay MO2, usar _profiles_root()/Default.
+        """
+        # Si el usuario cambio de perfil desde el plugin (o auto-follow lo cambio)
+        if hasattr(self, '_current_profile_dir') and self._current_profile_dir:
+            return self._current_profile_dir
+        # Si no, preguntar a MO2 cual es el perfil actual
         try:
             if self._organizer is not None:
                 prof = self._organizer.profile()
@@ -6352,17 +7706,163 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
                     return Path(prof.absolutePath())
         except Exception:
             pass
+        # Fallback: usar _profiles_root()/Default
+        return self._profiles_root() / "Default"
+
+    def _list_profiles(self):
+        """Lista los perfiles disponibles en MO2.
+        
+        Usa _profiles_root() para encontrar el directorio correcto de perfiles,
+        respetando la configuracion de Paths de MO2 (no asume basePath()/profiles).
+        """
         try:
+            profiles_dir = self._profiles_root()
+            if not profiles_dir.exists():
+                return []
+            # Cache: (dir_mtime, profiles_list)
+            try:
+                dir_mtime = profiles_dir.stat().st_mtime
+            except Exception:
+                dir_mtime = 0
+            cache = getattr(self, "_profiles_cache", None)
+            if cache is None:
+                cache = (0, [])
+                self._profiles_cache = cache
+            cached_mtime, cached_profiles = cache
+            if dir_mtime == cached_mtime and cached_profiles:
+                # Cache hit: solo actualizar el campo "current" (que indica el
+                # perfil activo en MO2, no el que el plugin esta viendo).
+                mo2_current = ""
+                try:
+                    if self._organizer is not None:
+                        prof = self._organizer.profile()
+                        if prof is not None:
+                            mo2_current = Path(prof.absolutePath()).name
+                except Exception:
+                    pass
+                if not mo2_current:
+                    mo2_current = self._profile_dir().name
+                # cached_profiles es una lista de nombres (strings)
+                return [{"name": n, "current": n == mo2_current} for n in cached_profiles]
+            # Cache miss: re-escanear directorio
+            profiles = []
+            for p in sorted(profiles_dir.iterdir()):
+                if p.is_dir() and (p / "modlist.txt").exists():
+                    profiles.append(p.name)
+            # El flag "current" indica el perfil que MO2 tiene activo (no el que
+            # el plugin esta viendo). Usar organizer.profile() para obtener el
+            # perfil real de MO2, no _profile_dir() que puede ser diferente si
+            # el usuario cambio de perfil manualmente en el plugin.
+            mo2_current = ""
+            try:
+                if self._organizer is not None:
+                    prof = self._organizer.profile()
+                    if prof is not None:
+                        mo2_current = Path(prof.absolutePath()).name
+            except Exception:
+                pass
+            if not mo2_current:
+                # Fallback: si no podemos obtener el perfil de MO2, usar _profile_dir()
+                mo2_current = self._profile_dir().name
+            result = [{"name": n, "current": n == mo2_current} for n in profiles]
+            # Actualizar cache
+            self._profiles_cache = (dir_mtime, profiles)
+            # Solo loguear si la lista cambio desde la ultima vez
+            cached_names = [p["name"] for p in cached_profiles] if cached_profiles else []
+            if [p["name"] for p in result] != cached_names:
+                self._debug_log(f"[PROFILE] Profile list updated: {len(result)} perfiles")
+                for p in result:
+                    self._debug_log(f"[PROFILE]   - {p['name']}{' (actual)' if p['current'] else ''}")
+            return result
+        except Exception as e:
+            self._debug_log(f"[PROFILE] Error listing profiles: {e}")
+            return []
+
+    def _switch_profile(self, profile_name, source="manual"):
+        """Cambia el perfil activo recreando reader, store y api.
+        
+        Args:
+            profile_name: nombre del perfil a cambiar.
+            source: 'manual' (usuario pulso el dropdown) o 'auto-follow'
+                    (detectado por _check_mo2_profile_changed). Solo se usa
+                    para logging.
+        """
+        try:
+            profiles_root = self._profiles_root()
+            new_profile_dir = profiles_root / profile_name
+            if not new_profile_dir.exists():
+                return False, f"Perfil no encontrado: {profile_name}"
+            # Necesitamos base_path para crear el reader. Usar basePath() como
+            # fallback (el reader lo usa para mods_dir y categories.dat).
             base = Path(self._organizer.basePath()) if self._organizer else Path.cwd()
-        except Exception:
-            base = Path.cwd()
-        return base / "profiles" / "Default"
+            # Si ya estamos en ese perfil, no hacer nada (evita recrear innecesariamente)
+            cur = getattr(self, '_current_profile_dir', None)
+            if cur is not None and Path(cur).resolve() == Path(new_profile_dir).resolve():
+                return True, f"Ya en el perfil: {profile_name}"
+            profile_dir = new_profile_dir
+            self._debug_log(f"[SERVER] Switching to profile ({source}): {profile_name}")
+            self._debug_log(f"[SERVER] New profile_dir: {profile_dir}")
+            # Guardar el nuevo perfil para que _profile_dir() lo use
+            self._current_profile_dir = Path(profile_dir)
+            reader = ModlistReader(base, profile_dir, self._organizer, self._logger)
+            store = Store(profile_dir / "ModlistManager")
+            api = Api(reader=reader, store=store, profile_dir=profile_dir,
+                      base_path=base, translations_dir=None,
+                      organizer=self._organizer, logger=self._logger,
+                      plugin=self)
+            api._extension = self._extension
+            # Guardar las nuevas instancias para que el handler las use
+            self._current_api = api
+            self._current_reader = reader
+            self._current_store = store
+            self._current_profile = profile_name
+            self._debug_log(f"[SERVER] Profile changed to: {profile_name}")
+            return True, f"Profile changed to: {profile_name}"
+        except Exception as e:
+            self._debug_log(f"[SERVER] Error switching profile: {e}")
+            return False, str(e)
+
+    def _check_mo2_profile_changed(self):
+        """Detecta si MO2 changed profile externamente y sincroniza el plugin.
+        
+        MO2 no expone un evento de "profile changed" que el plugin pueda escuchar.
+        Esta funcion consulta self._organizer.profile() y compara con el perfil
+        actual del plugin. Si difieren, llama a _switch_profile('auto-follow').
+        
+        Retorna True si el perfil cambio (para que el llamador pueda notificar a
+        la UI), False en caso contrario.
+        
+        Es muy liviana: solo llama a MO2.profile() y compara strings. No lee
+        archivos ni hace I/O. El overhead es < 1ms por llamada.
+        """
+        try:
+            if self._organizer is None:
+                return False
+            prof = self._organizer.profile()
+            if prof is None:
+                return False
+            mo2_profile_path = Path(prof.absolutePath())
+            current = getattr(self, '_current_profile_dir', None)
+            if current is None:
+                # Primer arranque: no cambiar nada, _start_server ya lo manejo
+                return False
+            if Path(current).resolve() == mo2_profile_path.resolve():
+                return False  # Mismo perfil, no hacer nada
+            # MO2 changed profile: sincronizar
+            new_name = mo2_profile_path.name
+            self._debug_log(f"[AUTO-FOLLOW] MO2 changed profile: {new_name}")
+            ok, msg = self._switch_profile(new_name, source="auto-follow")
+            return ok
+        except Exception as e:
+            try: self._debug_log(f"[AUTO-FOLLOW] Error: {e}")
+            except Exception: pass
+            return False
 
     def _start_server(self):
         if self._server is not None:
-            self._debug_log("[SERVER] Ya corriendo, reusando")
+            self._debug_log("[SERVER] Already running, reusing")
             return
-        self._debug_log("[SERVER] _start_server() iniciado")
+        self._debug_log("[SERVER] _start_server() started")
         try:
             base_path = Path(self._organizer.basePath()) if self._organizer else Path.cwd()
         except Exception:
@@ -6375,7 +7875,7 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
             reader = ModlistReader(base_path, profile_dir, self._organizer, self._logger)
             store = Store(profile_dir / "ModlistManager")
         except Exception as e:
-            self._debug_log(f"[SERVER] Error creando reader/store: {e}")
+            self._debug_log(f"[SERVER] Error creating reader/store: {e}")
             import traceback
             self._debug_log(traceback.format_exc())
             return
@@ -6383,16 +7883,34 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
         try:
             api = Api(reader=reader, store=store, profile_dir=profile_dir,
                       base_path=base_path, translations_dir=None,
-                      organizer=self._organizer, logger=self._logger)
+                      organizer=self._organizer, logger=self._logger,
+                      plugin=self)
             # Pasar referencia de la extension al API si esta cargada
             api._extension = self._extension
         except Exception as e:
-            self._debug_log(f"[SERVER] Error creando API: {e}")
+            self._debug_log(f"[SERVER] Error creating API: {e}")
             import traceback
             self._debug_log(traceback.format_exc())
             return
 
         plugin_self = self
+        # Guardar instancias actuales para que el handler las use dinamicamente
+        plugin_self._current_api = api
+        plugin_self._current_reader = reader
+        plugin_self._current_store = store
+        plugin_self._current_profile = profile_dir.name
+
+        # Auto-backup del modlist una vez por sesion de MO2.
+        # Se hace AQUI (en _start_server) y no en init() porque durante init()
+        # MO2 puede no haber cargado el perfil correcto, causando que el backup
+        # se guarde en el perfil "Default" en lugar del perfil actual.
+        # _start_server se llama cuando el usuario abre el plugin (display()),
+        # momento en el que MO2 ya tiene el perfil correcto cargado.
+        try:
+            self._create_auto_backup_if_needed()
+        except Exception as e:
+            try: self._debug_log(f"[SERVER] Error in auto-backup: {e}")
+            except Exception: pass
 
         class Handler(http.server.BaseHTTPRequestHandler):
             def log_message(self, fmt, *args): pass
@@ -6426,7 +7944,7 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
                         self.end_headers()
                         html = HTML_CONTENT
                         # Inyectar contenido de la extension si existe
-                        plugin_self._debug_log(f"[EXT] Sirviendo HTML, _extension is None: {plugin_self._extension is None}")
+                        plugin_self._debug_log(f"[EXT] Serving HTML, _extension is None: {plugin_self._extension is None}")
                         if plugin_self._extension is not None:
                             try:
                                 ext = plugin_self._extension
@@ -6437,19 +7955,19 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
                                 if hasattr(ext, 'get_tab_html'):
                                     tab_html = ext.get_tab_html()
                                     html = html.replace("<!--EXTENSION_TAB-->", tab_html)
-                                    plugin_self._debug_log(f"[EXT] Tab HTML inyectado ({len(tab_html)} chars)")
+                                    plugin_self._debug_log(f"[EXT] Tab HTML injected ({len(tab_html)} chars)")
                                 if hasattr(ext, 'get_panel_html'):
                                     panel_html = ext.get_panel_html()
                                     html = html.replace("<!--EXTENSION_PANEL-->", panel_html)
-                                    plugin_self._debug_log(f"[EXT] Panel HTML inyectado ({len(panel_html)} chars)")
+                                    plugin_self._debug_log(f"[EXT] Panel HTML injected ({len(panel_html)} chars)")
                                 if hasattr(ext, 'get_css'):
                                     css = ext.get_css()
                                     html = html.replace("/*EXTENSION_CSS*/", css)
-                                    plugin_self._debug_log(f"[EXT] CSS inyectado ({len(css)} chars)")
+                                    plugin_self._debug_log(f"[EXT] CSS injected ({len(css)} chars)")
                                 if hasattr(ext, 'get_js'):
                                     js = ext.get_js()
                                     html = html.replace("//EXTENSION_JS", js)
-                                    plugin_self._debug_log(f"[EXT] JS inyectado ({len(js)} chars)")
+                                    plugin_self._debug_log(f"[EXT] JS injected ({len(js)} chars)")
                                 # Verificar que los marcadores fueron reemplazados
                                 remaining = []
                                 if "<!--EXTENSION_TAB-->" in html: remaining.append("TAB")
@@ -6457,15 +7975,15 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
                                 if "/*EXTENSION_CSS*/" in html: remaining.append("CSS")
                                 if "//EXTENSION_JS" in html: remaining.append("JS")
                                 if remaining:
-                                    plugin_self._debug_log(f"[EXT] WARNING: Marcadores no reemplazados: {remaining}")
+                                    plugin_self._debug_log(f"[EXT] WARNING: Markers not replaced: {remaining}")
                                 else:
-                                    plugin_self._debug_log("[EXT] Todos los marcadores reemplazados correctamente")
+                                    plugin_self._debug_log("[EXT] All markers replaced correctly")
                             except Exception as e:
-                                plugin_self._debug_log(f"[EXT] Error inyectando HTML: {e}")
+                                plugin_self._debug_log(f"[EXT] Error injecting HTML: {e}")
                                 import traceback
                                 plugin_self._debug_log(traceback.format_exc())
                         self.wfile.write(html.encode("utf-8"))
-                        plugin_self._debug_log(f"[EXT] HTML servido ({len(html)} bytes)")
+                        plugin_self._debug_log(f"[EXT] HTML served ({len(html)} bytes)")
                         return
 
                     if path == "/i18n.json" and method == "GET":
@@ -6481,13 +7999,21 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
                                 if isinstance(ext_strings, dict):
                                     merged_strings.update(ext_strings)
                             except Exception as e:
-                                plugin_self._debug_log(f"[EXT] Error cargando traducciones: {e}")
+                                plugin_self._debug_log(f"[EXT] Error loading translations: {e}")
                         self.wfile.write(json.dumps({"language": plugin_self._language,
                             "strings": merged_strings}, ensure_ascii=False).encode("utf-8"))
                         return
 
                     if path.startswith("/api/"):
-                        status, payload = api.handle(method, path, body, query)
+                        # Auto-follow DESACTIVADO en el polling (v5.1.1).
+                        # Antes (v5.0) se verificaba si MO2 changed profile en cada
+                        # polling, pero esto causaba que al cambiar manualmente de perfil
+                        # en el plugin, el auto-follow lo revertia al instante (porque
+                        # MO2 seguia en el perfil anterior).
+                        # Ahora: el plugin detecta el perfil de MO2 al iniciar, pero
+                        # despues deja al usuario cambiar libremente de perfil en el plugin.
+                        current_api = plugin_self._current_api or api
+                        status, payload = current_api.handle(method, path, body, query)
                         if isinstance(payload, dict) and "_binary" in payload:
                             data = payload["_binary"]
                             ctype = payload.get("_content_type", "application/octet-stream")
@@ -6541,7 +8067,7 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
                     daemon_threads = True
                 httpd = RS(("127.0.0.1", configured_port), Handler)
                 chosen_port = configured_port
-                self._debug_log(f"[SERVER] Usando puerto configurado {configured_port}")
+                self._debug_log(f"[SERVER] Using configured port {configured_port}")
             except OSError as e:
                 self._debug_log(f"[SERVER] Puerto configurado {configured_port} ocupado: {e}")
         if chosen_port is None:
@@ -6569,7 +8095,7 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
         t = threading.Thread(target=run_server, daemon=True)
         t.start()
         self._server_thread = t
-        self._debug_log(f"[SERVER] Servidor arrancado OK en puerto {chosen_port}")
+        self._debug_log(f"[SERVER] Server started OK on port {chosen_port}")
         self._debug_log(f"[SERVER] URL: http://127.0.0.1:{chosen_port}/")
 
 
