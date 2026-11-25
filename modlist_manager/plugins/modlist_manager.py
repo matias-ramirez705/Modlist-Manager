@@ -49,7 +49,7 @@ except ImportError:
 
 # ==================== HTML embebido ====================
 HTML_CONTENT = r'''<!DOCTYPE html>
-<html lang="es">
+<html lang="__LANG__">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -867,6 +867,14 @@ hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
       <button class="modal-close" onclick="document.getElementById('settings-modal').classList.add('hidden');">x</button>
     </div>
     <div class="modal-body" style="padding:16px;">
+      <!-- v6.1.0: selector de idioma de la interfaz -->
+      <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+        <label style="display:block;font-weight:600;margin-bottom:6px;" data-i18n="settings.ui_language">Interface language</label>
+        <select id="settings-ui-language" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-size:13px;">
+          <option value="auto" data-i18n="settings.lang_auto">Automatic (follow MO2)</option>
+        </select>
+        <p style="font-size:11px;color:var(--text-dim);margin-top:6px;line-height:1.4;" data-i18n="settings.ui_language_desc">Changes apply immediately. The tooltip texts in MO2's own settings dialog will update on next MO2 restart.</p>
+      </div>
       <div style="margin-bottom:16px;">
         <label style="display:block;font-weight:600;margin-bottom:6px;" data-i18n="settings.data_source">Modo de carga de datos</label>
         <select id="settings-data-source" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-size:13px;">
@@ -3823,13 +3831,53 @@ const App={pollMs:3000,pollTimer:null,
       }catch(e){showToast(I18n.t("topbar.error")+": "+e.message,"error");}
     });
     // Boton Ajustes (engranaje): abrir modal de data_source
-    document.getElementById("btn-settings").addEventListener("click",()=>{
+    document.getElementById("btn-settings").addEventListener("click",async()=>{
       const modal=document.getElementById("settings-modal");
       // Pre-seleccionar el modo actual
       const cur=AppState.state&&(AppState.state.data_source||"");
       const sel=document.getElementById("settings-data-source");
       if(cur)sel.value=cur;
+      // v6.1.0: poblar el selector de idioma con los disponibles
+      try{
+        const r=await fetch("/api/available_languages");
+        const d=await r.json();
+        if(d.ok&&d.data){
+          const langSel=document.getElementById("settings-ui-language");
+          // Conservar la opcion "auto" que ya esta en el HTML
+          const autoOpt=langSel.querySelector('option[value="auto"]');
+          langSel.innerHTML="";
+          langSel.appendChild(autoOpt);
+          (d.data.languages||[]).forEach(l=>{
+            const o=document.createElement("option");
+            o.value=l.code;
+            o.textContent=l.name+" ("+l.code+")";
+            langSel.appendChild(o);
+          });
+          langSel.value=d.data.current||"auto";
+        }
+      }catch(e){console.error("Failed to load languages",e);}
       modal.classList.remove("hidden");
+    });
+    // v6.1.0: cambiar idioma en caliente desde el modal de ajustes
+    document.getElementById("settings-ui-language").addEventListener("change",async(e)=>{
+      const lang=e.target.value;
+      try{
+        const r=await fetch("/api/set_language",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({lang})});
+        const d=await r.json();
+        if(!d.ok)throw new Error(d.error);
+        // Actualizar el diccionario i18n del lado del cliente
+        I18n.translations=(d.data&&d.data.strings)||{};
+        I18n.current=(d.data&&d.data.language)||lang;
+        // Re-aplicar traducciones a todos los elementos data-i18n del DOM
+        I18n.apply();
+        // Actualizar el atributo lang del <html> para que el navegador
+        // no ofrezca traducir desde el idioma equivocado
+        document.documentElement.lang=I18n.current;
+        // Mostrar toast en el nuevo idioma
+        showToast(I18n.t("settings.lang_applied")||"Language changed","success");
+        // Cerrar el modal para que el usuario vea el resultado en la UI principal
+        document.getElementById("settings-modal").classList.add("hidden");
+      }catch(err){showToast((I18n.t("topbar.error")||"Error")+": "+err.message,"error");}
     });
     // Boton "Aplicar y recargar" del modal de ajustes
     document.getElementById("btn-save-data-source").addEventListener("click",async()=>{
@@ -6212,6 +6260,45 @@ class Api:
                     return (HTTPStatus.OK, {"ok": True, "data": {"source": source}})
                 except Exception as e:
                     return (HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(e)})
+            # v6.1.0: selector de idioma en caliente.
+            if path == "/api/available_languages" and method == "GET":
+                try:
+                    langs = self.plugin._list_available_languages() if self.plugin else []
+                    current_override = (self.plugin._language_override or "auto") if self.plugin else "auto"
+                    effective = (self.plugin._language if self.plugin else "en")
+                    return (HTTPStatus.OK, {"ok": True, "data": {
+                        "languages": [{"code": c, "name": n} for c, n in langs],
+                        "current": current_override,
+                        "effective": effective,
+                    }})
+                except Exception as e:
+                    return (HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(e)})
+            if path == "/api/set_language" and method == "POST":
+                try:
+                    payload = json.loads(body.decode("utf-8")) if body else {}
+                except Exception:
+                    return (HTTPStatus.BAD_REQUEST, {"ok": False, "error": "JSON invalido"})
+                lang = (payload.get("lang") or "auto").strip().lower()
+                if self.plugin is None:
+                    return (HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "Plugin not initialized"})
+                ok = self.plugin._set_language_override(lang)
+                if not ok:
+                    return (HTTPStatus.BAD_REQUEST, {"ok": False, "error": "Codigo de idioma invalido"})
+                # Construir merged strings (igual que /i18n.json) para que el JS
+                # pueda actualizar el diccionario en caliente sin refetch.
+                merged_strings = dict(self.plugin._translations)
+                if self.plugin._extension is not None:
+                    try:
+                        ext_strings = self.plugin._extension.get_translations(self.plugin._language, self.plugin._organizer)
+                        if isinstance(ext_strings, dict):
+                            merged_strings.update(ext_strings)
+                    except Exception:
+                        pass
+                return (HTTPStatus.OK, {"ok": True, "data": {
+                    "language": self.plugin._language,
+                    "override": self.plugin._language_override or "auto",
+                    "strings": merged_strings,
+                }})
             return (HTTPStatus.NOT_FOUND, {"ok": False, "error": "Ruta no encontrada"})
         except Exception as e:
             if self.logger: self.logger.exception("API error %s %s: %s", method, path, e)
@@ -7171,6 +7258,10 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
         self._logger = None
         self._translations = {}
         self._language = "en"
+        # v6.1.0: override de idioma seleccionable desde la UI web.
+        # None = seguir el idioma de MO2 (comportamiento por defecto).
+        # "en"/"es"/"ru"/... = forzar ese idioma independientemente de MO2.
+        self._language_override = None
         self._server_port = None
         self._debug_log_path = None
         self._debug_log_date = None
@@ -7258,6 +7349,15 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
         self._debug_log("[INIT] Modlist Manager init() llamado")
         self._debug_log(f"[INIT] basePath() = {organizer.basePath() if organizer else 'None'}")
         self._debug_log(f"[INIT] cwd() = {Path.cwd()}")
+        # v6.1.0: cargar override de idioma persistido (si el usuario lo eligio
+        # en la UI web y cerro MO2). "auto" o vacio = seguir MO2.
+        try:
+            persisted = self._get_string_setting("ui_language_override", "")
+            if persisted and persisted.lower() != "auto":
+                self._language_override = persisted.lower()[:2]
+                self._debug_log(f"[INIT] Language override from settings: {self._language_override}")
+        except Exception:
+            pass
         self._load_translations()
         self._debug_log(f"[INIT] Language: {self._language} ({len(self._translations)} translations)")
         # Cargar extension opcional si existe
@@ -7452,15 +7552,17 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
         try:
             return [
                 mobase.PluginSetting("auto_open_browser",
-                    "Automatically open the browser when the plugin starts", True),
+                    self._tr("Automatically open the browser when the plugin starts"), True),
                 mobase.PluginSetting("start_on_mo2_startup",
-                    "Start the web server when MO2 starts (if false, server starts on-demand when you open the plugin)", False),
+                    self._tr("Start the web server when MO2 starts (if false, server starts on-demand when you open the plugin)"), False),
                 mobase.PluginSetting("web_server_port",
-                    "Web server port (0 = auto-select from 8765-8775)", 0),
+                    self._tr("Web server port (0 = auto-select from 8765-8775)"), 0),
                 mobase.PluginSetting("data_source",
-                    "Data source: 'csv' = use MO2 exported CSV (faster for large modlists, requires manual CSV export) | 'modlist' = read modlist.txt + meta.ini directly (no CSV needed, slower for 3000+ mods) | '' = ask on first launch", ""),
+                    self._tr("Data source: 'csv' = use MO2 exported CSV (faster for large modlists, requires manual CSV export) | 'modlist' = read modlist.txt + meta.ini directly (no CSV needed, slower for 3000+ mods) | '' = ask on first launch"), ""),
+                mobase.PluginSetting("ui_language_override",
+                    self._tr("Web UI language override ('auto' = follow MO2's interface language, or 'en'/'es'/'ru'/... to force a specific language). Can also be changed at runtime from the web plugin's settings gear."), "auto"),
                 mobase.PluginSetting("debug_enabled",
-                    "Enable debug logging to modlist_manager_debug.txt (cleared on each MO2 restart)", False),
+                    self._tr("Enable debug logging to modlist_manager_debug.txt (cleared on each MO2 restart)"), False),
             ]
         except Exception:
             return []
@@ -7569,6 +7671,9 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
         return text
 
     def _detect_language(self):
+        # v6.1.0: si el usuario forzo un idioma desde la UI web, usarlo.
+        if self._language_override:
+            return self._language_override
         if self._organizer is not None:
             for sn in ['language','locale','Settings\\language']:
                 try:
@@ -7645,6 +7750,74 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
         except Exception:
             self._translations = self._builtin_strings()
             self._language = "en"
+
+    # v6.1.0: selector de idioma en caliente desde la UI web.
+    _LANGUAGE_NAMES = {
+        "en": "English", "es": "Español", "ru": "Русский",
+        "de": "Deutsch", "fr": "Français", "it": "Italiano",
+        "pt": "Português", "pl": "Polski", "ja": "日本語",
+        "zh": "中文", "ko": "한국어", "uk": "Українська",
+        "cs": "Čeština", "nl": "Nederlands", "sv": "Svenska",
+        "tr": "Türkçe", "fi": "Suomi", "da": "Dansk",
+        "nb": "Norsk", "hu": "Magyar", "ro": "Română",
+        "bg": "Български", "el": "Ελληνικά",
+    }
+
+    def _list_available_languages(self):
+        """Escanea las carpetas de traducciones y devuelve una lista
+        ordenada de tuplas (code, name) con los idiomas disponibles
+        que tengan un archivo modlist_manager_<code>.json valido."""
+        seen = {}
+        search_dirs = []
+        try: search_dirs.append(Path.cwd() / "translations")
+        except Exception: pass
+        try:
+            if self._organizer: search_dirs.append(Path(self._organizer.basePath()) / "translations")
+        except Exception: pass
+        try: search_dirs.append(Path(__file__).resolve().parent / "translations")
+        except Exception: pass
+        try: search_dirs.append(Path(__file__).resolve().parent.parent / "translations")
+        except Exception: pass
+        for d in search_dirs:
+            try:
+                if not d.exists(): continue
+                for f in d.iterdir():
+                    if not f.is_file(): continue
+                    name = f.name
+                    if not name.startswith("modlist_manager_"): continue
+                    if not name.endswith(".json"): continue
+                    code = name[len("modlist_manager_"):-len(".json")].lower()
+                    if len(code) != 2 or not code.isalpha(): continue
+                    if code in seen: continue
+                    if f.stat().st_size <= 2: continue
+                    seen[code] = self._LANGUAGE_NAMES.get(code, code.upper())
+            except Exception:
+                continue
+        return sorted(seen.items())
+
+    def _set_language_override(self, lang):
+        """Establece el override de idioma. 'auto' o '' = seguir MO2.
+        Devuelve True si se aplico correctamente, False si el codigo es invalido."""
+        if not lang or lang.lower() == "auto":
+            self._language_override = None
+            to_persist = "auto"
+        else:
+            lang = lang.lower().strip()[:2]
+            if len(lang) != 2 or not lang.isalpha():
+                return False
+            self._language_override = lang
+            to_persist = lang
+        # Persistir para que sobreviva a reinicios de MO2.
+        try:
+            if self._organizer is not None:
+                self._organizer.setPluginSetting(self.name(), "ui_language_override", to_persist)
+        except Exception:
+            pass
+        # Recargar traducciones con el nuevo idioma efectivo.
+        self._load_translations()
+        self._debug_log(f"[LANG] Override set to: {to_persist} (effective: {self._language}, "
+                        f"{len(self._translations)} translations)")
+        return True
 
     @staticmethod
     def _builtin_strings():
@@ -7942,7 +8115,7 @@ class ModlistManager(mobase.IPluginTool if mobase else object):
                         self.send_header("Content-type", "text/html; charset=utf-8")
                         self.send_header("Cache-Control", "no-store")
                         self.end_headers()
-                        html = HTML_CONTENT
+                        html = HTML_CONTENT.replace("__LANG__", plugin_self._language or "en")
                         # Inyectar contenido de la extension si existe
                         plugin_self._debug_log(f"[EXT] Serving HTML, _extension is None: {plugin_self._extension is None}")
                         if plugin_self._extension is not None:

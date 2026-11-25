@@ -347,5 +347,15 @@
   "settings.data_source_desc": "Al cambiar este modo, se borra database.json y se recargan los datos desde cero con el nuevo modo. Tus comentarios personales (comment2) y tags se preservan.",
   "settings.cancel": "Cancelar",
   "settings.apply": "Aplicar y recargar",
-  "settings.applied": "Modo cambiado, recargando..."
+  "settings.applied": "Modo cambiado, recargando...",
+  "settings.ui_language": "Idioma de la interfaz",
+  "settings.lang_auto": "Automatico (seguir MO2)",
+  "settings.ui_language_desc": "Los cambios se aplican al instante. Los textos de los tooltips del dialogo de ajustes de MO2 se actualizaran en el proximo reinicio de MO2.",
+  "settings.lang_applied": "Idioma cambiado",
+  "Automatically open the browser when the plugin starts": "Abrir automaticamente el navegador cuando se inicia el plugin",
+  "Start the web server when MO2 starts (if false, server starts on-demand when you open the plugin)": "Iniciar el servidor web cuando se abre MO2 (si es falso, el servidor se inicia bajo demanda al abrir el plugin)",
+  "Web server port (0 = auto-select from 8765-8775)": "Puerto del servidor web (0 = seleccion automatica entre 8765-8775)",
+  "Data source: 'csv' = use MO2 exported CSV (faster for large modlists, requires manual CSV export) | 'modlist' = read modlist.txt + meta.ini directly (no CSV needed, slower for 3000+ mods) | '' = ask on first launch": "Fuente de datos: 'csv' = usar CSV exportado por MO2 (mas rapido para listas grandes, requiere exportacion manual) | 'modlist' = leer modlist.txt + meta.ini directamente (sin CSV, mas lento para 3000+ mods) | '' = preguntar al iniciar",
+  "Enable debug logging to modlist_manager_debug.txt (cleared on each MO2 restart)": "Habilitar registro de depuracion en modlist_manager_debug.txt (se limpia en cada reinicio de MO2)",
+  "Web UI language override ('auto' = follow MO2's interface language, or 'en'/'es'/'ru'/... to force a specific language). Can also be changed at runtime from the web plugin's settings gear.": "Override de idioma de la interfaz web ('auto' = seguir el idioma de MO2, o 'en'/'es'/'ru'/... para forzar un idioma especifico). Tambien se puede cambiar en caliente desde el engranaje de ajustes del plugin web."
 }
